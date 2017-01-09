@@ -3,10 +3,13 @@ jdk: oraclejdk8
 #dist: trusty
 android:
   components:
-    - build-tools-24.0.3
-    - android-24
+    - tools
     - platform-tools
     - tools
+
+    - build-tools-24.0.3
+    - android-24
+    - extra-google-m2repository
     - extra-android-m2repository
 addons:
   sonarqube:
@@ -19,5 +22,6 @@ script:
 
 licenses:
   - 'android-sdk-preview-license'
+  - 'android-sdk-preview-license-.+'
   - 'android-sdk-license-.+'
   - 'google-gdk-license-.+'  
