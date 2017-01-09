@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.example.androidthings.pca6895ServoTest;
+package com.example.androidthings.pca6895servotest;
 
 import android.app.Activity;
 import android.os.Bundle;
@@ -55,7 +55,8 @@ public class MainActivity extends Activity {
   private static final int SERVO_MAX = 580;
   private int usingChannel = 0;
 
-  PCA9685Servo pca9685Servo;
+  private PCA9685Servo pca9685Servo;
+  @SuppressWarnings("FieldCanBeLocal")
   private Spinner spinnerChannel;
 
   @Override
@@ -76,13 +77,17 @@ public class MainActivity extends Activity {
 
       @Override
       public void onStartTrackingTouch(SeekBar seekBar) {
-
+        // ignoreing this.
       }
 
       @Override
       public void onStopTrackingTouch(SeekBar seekBar) {
-        pca9685Servo.setServoAngle(usingChannel,seekBar.getProgress());
-        updateText();
+        try {
+          pca9685Servo.setServoAngle(usingChannel,seekBar.getProgress());
+          updateText();
+        } catch (Exception e) {
+          Log.d("ERROR","Exception: " + e.getMessage());
+        }
       }
     });
 
@@ -96,12 +101,16 @@ public class MainActivity extends Activity {
 
       @Override
       public void onNothingSelected(AdapterView<?> parent) {
-
+        // not implemented or needed
       }
     });
 
-    pca9685Servo = new PCA9685Servo(PCA9685Servo.PCA9685_ADDRESS);
-    pca9685Servo.setServoMinMaxPwm(0,180,SERVO_MIN,SERVO_MAX);
+    try {
+      pca9685Servo = new PCA9685Servo(PCA9685Servo.PCA9685_ADDRESS);
+      pca9685Servo.setServoMinMaxPwm(0,180,SERVO_MIN,SERVO_MAX);
+    } catch (Exception e) {
+      Log.d("ERROR","Exception: " + e.getMessage());
+    }
 
   }
 
@@ -115,10 +124,6 @@ public class MainActivity extends Activity {
   protected void onDestroy() {
     super.onDestroy();
     Log.d(TAG, "onDestroy");
-    if(pca9685Servo != null){
-      pca9685Servo.destroy();
-      pca9685Servo = null;
-    }
   }
 
 }

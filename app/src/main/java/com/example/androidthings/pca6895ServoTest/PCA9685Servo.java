@@ -1,10 +1,11 @@
-package com.example.androidthings.pca6895ServoTest;
+package com.example.androidthings.pca6895servotest;
 
 import android.util.Log;
 
 import com.google.android.things.pio.I2cDevice;
 import com.google.android.things.pio.PeripheralManagerService;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 
@@ -14,7 +15,7 @@ import java.util.List;
  */
 
 @SuppressWarnings({"WeakerAccess", "unused"})
-public class PCA9685Servo {
+public class PCA9685Servo implements Closeable {
   public static final byte PCA9685_ADDRESS = 0x40;
   private static final int MODE1 = 0x00;
   private static final int MODE2 = 0x01;
@@ -47,7 +48,7 @@ public class PCA9685Servo {
   private int currentPwm;
 
 
-  public PCA9685Servo(byte address) {
+  public PCA9685Servo(byte address) throws Exception {
     PeripheralManagerService manager = new PeripheralManagerService();
     List<String> deviceList = manager.getI2cBusList();
     if (deviceList.isEmpty()) {
@@ -83,20 +84,6 @@ public class PCA9685Servo {
     }
   }
 
-
-
-  public void destroy(){
-    if(i2cDevice != null){
-      try {
-        i2cDevice.close();
-      } catch (IOException e) {
-        e.printStackTrace();
-        throw e;
-      }
-    }
-
-  }
-
   public void setServoMinMaxPwm(int minAngle, int maxAngle, int minPwm, int maxPwm){
     this.maxPwm = maxPwm;
     this.minPwm = minPwm;
@@ -105,12 +92,12 @@ public class PCA9685Servo {
   }
 
 
-  public void setServoAngle(int channel, int angle){
+  public void setServoAngle(int channel, int angle) throws Exception  {
     currentPwm = map(angle,minAngle,maxAngle,minPwm,maxPwm);
     setPwm(channel,0,currentPwm);
   }
 
-  public void setPwmFreq(int freq_hz) {
+  public void setPwmFreq(int freq_hz) throws Exception {
     try {
       double prescaleval = 25000000.0;    //# 25MHz
       prescaleval /= 4096.0;       //# 12-bit
@@ -141,7 +128,7 @@ public class PCA9685Servo {
     }
   }
 
-  public void setPwm(int channel, int on, int off) {
+  public void setPwm(int channel, int on, int off) throws Exception {
     if (i2cDevice != null) {
       try {
         i2cDevice.writeRegByte(LED0_ON_L + 4 * channel, (byte) (on & 0xFF));
@@ -156,7 +143,7 @@ public class PCA9685Servo {
 
   }
 
-  public void setAllPwm(int on, int off) {
+  public void setAllPwm(int on, int off) throws Exception {
     if (i2cDevice != null) {
       try {
         i2cDevice.writeRegByte(ALL_LED_ON_L, (byte) (on & 0xFF));
@@ -177,5 +164,13 @@ public class PCA9685Servo {
 
   public int getCurrentPwm(){
     return currentPwm;
+  }
+
+  @Override
+  public void close() throws IOException {
+    if(i2cDevice != null){
+        i2cDevice.close();
+    }
+
   }
 }
