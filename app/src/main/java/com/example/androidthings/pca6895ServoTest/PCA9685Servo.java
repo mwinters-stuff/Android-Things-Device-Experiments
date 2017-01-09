@@ -74,9 +74,11 @@ public class PCA9685Servo {
       } catch (IOException e) {
         Log.d(TAG, "IO Error " + e.getMessage());
         e.printStackTrace();
+        throw e;
       } catch (InterruptedException e) {
         Log.d(TAG, "Error in sleep " + e.getMessage());
         e.printStackTrace();
+        throw e;
       }
     }
   }
@@ -89,6 +91,7 @@ public class PCA9685Servo {
         i2cDevice.close();
       } catch (IOException e) {
         e.printStackTrace();
+        throw e;
       }
     }
 
@@ -130,9 +133,11 @@ public class PCA9685Servo {
     } catch (IOException e) {
       Log.d(TAG, "IO Error " + e.getMessage());
       e.printStackTrace();
+      throw e;
     } catch (InterruptedException e) {
       Log.d(TAG, "Error in sleep " + e.getMessage());
       e.printStackTrace();
+      throw e;
     }
   }
 
@@ -145,6 +150,7 @@ public class PCA9685Servo {
         i2cDevice.writeRegByte(LED0_OFF_H + 4 * channel, (byte) (off >> 8));
       } catch (IOException e) {
         e.printStackTrace();
+        throw e;
       }
     }
 
@@ -159,6 +165,7 @@ public class PCA9685Servo {
         i2cDevice.writeRegByte(ALL_LED_OFF_H, (byte) (off >> 8));
       } catch (IOException e) {
         e.printStackTrace();
+        throw e;
       }
     }
   }
