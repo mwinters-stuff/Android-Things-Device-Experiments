@@ -14,14 +14,14 @@ import java.util.List;
  * Copyright 2017 Mathew Winters
  */
 
-@SuppressWarnings({"WeakerAccess", "unused"})
+@SuppressWarnings({"WeakerAccess"})
 public class PCA9685Servo implements Closeable {
   public static final byte PCA9685_ADDRESS = 0x40;
   private static final int MODE1 = 0x00;
   private static final int MODE2 = 0x01;
-  private static final int SUBADR1 = 0x02;
-  private static final int SUBADR2 = 0x03;
-  private static final int SUBADR3 = 0x04;
+//  private static final int SUBADR1 = 0x02;
+//  private static final int SUBADR2 = 0x03;
+//  private static final int SUBADR3 = 0x04;
   private static final int PRESCALE = 0xFE;
   private static final int LED0_ON_L = 0x06;
   private static final int LED0_ON_H = 0x07;
@@ -32,13 +32,13 @@ public class PCA9685Servo implements Closeable {
   private static final int ALL_LED_OFF_L = 0xFC;
   private static final int ALL_LED_OFF_H = 0xFD;
   //Bits:;
-  private static final int RESTART = 0x80;
+//  private static final int RESTART = 0x80;
   private static final int SLEEP = 0x10;
   private static final int ALLCALL = 0x01;
-  private static final int INVRT = 0x10;
+//  private static final int INVRT = 0x10;
   private static final int OUTDRV = 0x04;
 
-  private static final String TAG="Servo";
+  private static final String TAG = "Servo";
 
   private I2cDevice i2cDevice;
   private int minPwm;
@@ -48,7 +48,7 @@ public class PCA9685Servo implements Closeable {
   private int currentPwm;
 
 
-  public PCA9685Servo(byte address) throws Exception {
+  public PCA9685Servo(byte address) throws IOException, InterruptedException {
     PeripheralManagerService manager = new PeripheralManagerService();
     List<String> deviceList = manager.getI2cBusList();
     if (deviceList.isEmpty()) {
@@ -84,7 +84,7 @@ public class PCA9685Servo implements Closeable {
     }
   }
 
-  public void setServoMinMaxPwm(int minAngle, int maxAngle, int minPwm, int maxPwm){
+  public void setServoMinMaxPwm(int minAngle, int maxAngle, int minPwm, int maxPwm) {
     this.maxPwm = maxPwm;
     this.minPwm = minPwm;
     this.minAngle = minAngle;
@@ -92,19 +92,19 @@ public class PCA9685Servo implements Closeable {
   }
 
 
-  public void setServoAngle(int channel, int angle) throws Exception  {
-    currentPwm = map(angle,minAngle,maxAngle,minPwm,maxPwm);
-    setPwm(channel,0,currentPwm);
+  public void setServoAngle(int channel, int angle) throws Exception {
+    currentPwm = map(angle, minAngle, maxAngle, minPwm, maxPwm);
+    setPwm(channel, 0, currentPwm);
   }
 
-  public void setPwmFreq(int freq_hz) throws Exception {
+  public void setPwmFreq(int freqHz) throws IOException, InterruptedException {
     try {
       double prescaleval = 25000000.0;    //# 25MHz
       prescaleval /= 4096.0;       //# 12-bit
-      prescaleval /= freq_hz;
+      prescaleval /= freqHz;
       prescaleval -= 1.0;
 
-      Log.d(TAG, String.format("Setting PWM frequency to %d Hz", freq_hz));
+      Log.d(TAG, String.format("Setting PWM frequency to %d Hz", freqHz));
       Log.d(TAG, String.format("Estimated pre-scale: %.4f", prescaleval));
       int prescale = (int) Math.floor(prescaleval + 0.5);
       Log.d(TAG, String.format("Final pre-scale: %d", prescale));
@@ -128,7 +128,7 @@ public class PCA9685Servo implements Closeable {
     }
   }
 
-  public void setPwm(int channel, int on, int off) throws Exception {
+  public void setPwm(int channel, int on, int off) throws IOException {
     if (i2cDevice != null) {
       try {
         i2cDevice.writeRegByte(LED0_ON_L + 4 * channel, (byte) (on & 0xFF));
@@ -143,7 +143,7 @@ public class PCA9685Servo implements Closeable {
 
   }
 
-  public void setAllPwm(int on, int off) throws Exception {
+  public void setAllPwm(int on, int off) throws IOException {
     if (i2cDevice != null) {
       try {
         i2cDevice.writeRegByte(ALL_LED_ON_L, (byte) (on & 0xFF));
@@ -158,18 +158,18 @@ public class PCA9685Servo implements Closeable {
   }
 
 
-  public int map(int x, int in_min, int in_max, int out_min, int out_max) {
-    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+  public int map(int x, int inMin, int inMax, int outMin, int outMax) {
+    return (x - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
   }
 
-  public int getCurrentPwm(){
+  public int getCurrentPwm() {
     return currentPwm;
   }
 
   @Override
   public void close() throws IOException {
-    if(i2cDevice != null){
-        i2cDevice.close();
+    if (i2cDevice != null) {
+      i2cDevice.close();
     }
 
   }

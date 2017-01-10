@@ -83,15 +83,15 @@ public class MainActivity extends Activity {
       @Override
       public void onStopTrackingTouch(SeekBar seekBar) {
         try {
-          pca9685Servo.setServoAngle(usingChannel,seekBar.getProgress());
+          pca9685Servo.setServoAngle(usingChannel, seekBar.getProgress());
           updateText();
         } catch (Exception e) {
-          Log.d("ERROR","Exception: " + e.getMessage());
+          Log.d("ERROR", "Exception: " + e.getMessage());
         }
       }
     });
 
-    spinnerChannel = (Spinner)findViewById(R.id.spinnerChannel);
+    spinnerChannel = (Spinner) findViewById(R.id.spinnerChannel);
     spinnerChannel.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
       @Override
       public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -107,15 +107,15 @@ public class MainActivity extends Activity {
 
     try {
       pca9685Servo = new PCA9685Servo(PCA9685Servo.PCA9685_ADDRESS);
-      pca9685Servo.setServoMinMaxPwm(0,180,SERVO_MIN,SERVO_MAX);
+      pca9685Servo.setServoMinMaxPwm(0, 180, SERVO_MIN, SERVO_MAX);
     } catch (Exception e) {
-      Log.d("ERROR","Exception: " + e.getMessage());
+      Log.d("ERROR", "Exception: " + e.getMessage());
     }
 
   }
 
   private void updateText() {
-    textView.setText(String.format(Locale.getDefault(),"Channel %d Angle %d pwm %d",usingChannel, seekBar.getProgress(), pca9685Servo.getCurrentPwm()));
+    textView.setText(String.format(Locale.getDefault(), "Channel %d Angle %d pwm %d", usingChannel, seekBar.getProgress(), pca9685Servo.getCurrentPwm()));
 
   }
 
