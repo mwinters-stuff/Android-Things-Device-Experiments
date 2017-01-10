@@ -43,3 +43,6 @@ captures/
 .externalNativeBuild
 
 .DS_Store
+.project
+org.eclipse.buildship.core.prefs
+.classpath
