@@ -19,9 +19,9 @@ public class PCA9685Servo implements Closeable {
   public static final byte PCA9685_ADDRESS = 0x40;
   private static final int MODE1 = 0x00;
   private static final int MODE2 = 0x01;
-//  private static final int SUBADR1 = 0x02;
-//  private static final int SUBADR2 = 0x03;
-//  private static final int SUBADR3 = 0x04;
+//  private static final int SUBADR1 = 0x02; // NOSONAR
+//  private static final int SUBADR2 = 0x03; // NOSONAR
+//  private static final int SUBADR3 = 0x04; // NOSONAR
   private static final int PRESCALE = 0xFE;
   private static final int LED0_ON_L = 0x06;
   private static final int LED0_ON_H = 0x07;
@@ -31,11 +31,11 @@ public class PCA9685Servo implements Closeable {
   private static final int ALL_LED_ON_H = 0xFB;
   private static final int ALL_LED_OFF_L = 0xFC;
   private static final int ALL_LED_OFF_H = 0xFD;
-  //Bits:;
-//  private static final int RESTART = 0x80;
+  // Bits
+//  private static final int RESTART = 0x80; // NOSONAR
   private static final int SLEEP = 0x10;
   private static final int ALLCALL = 0x01;
-//  private static final int INVRT = 0x10;
+//  private static final int INVRT = 0x10; // NOSONAR
   private static final int OUTDRV = 0x04;
 
   private static final String TAG = "Servo";
@@ -74,11 +74,11 @@ public class PCA9685Servo implements Closeable {
         }
       } catch (IOException e) {
         Log.d(TAG, "IO Error " + e.getMessage());
-        e.printStackTrace();
+        e.printStackTrace(); // NOSONAR
         throw e;
       } catch (InterruptedException e) {
         Log.d(TAG, "Error in sleep " + e.getMessage());
-        e.printStackTrace();
+        e.printStackTrace(); // NOSONAR
         throw e;
       }
     }
@@ -92,12 +92,12 @@ public class PCA9685Servo implements Closeable {
   }
 
 
-  public void setServoAngle(int channel, int angle) throws Exception {
+  public void setServoAngle(int channel, int angle) throws IOException {
     currentPwm = map(angle, minAngle, maxAngle, minPwm, maxPwm);
     setPwm(channel, 0, currentPwm);
   }
 
-  public void setPwmFreq(int freqHz) throws IOException, InterruptedException {
+  public void setPwmFreq(int freqHz) throws IOException {
     try {
       double prescaleval = 25000000.0;    //# 25MHz
       prescaleval /= 4096.0;       //# 12-bit
@@ -119,12 +119,10 @@ public class PCA9685Servo implements Closeable {
       i2cDevice.writeRegByte(MODE1, (byte) (oldmode | 0x80));
     } catch (IOException e) {
       Log.d(TAG, "IO Error " + e.getMessage());
-      e.printStackTrace();
+      e.printStackTrace(); // NOSONAR
       throw e;
     } catch (InterruptedException e) {
-      Log.d(TAG, "Error in sleep " + e.getMessage());
-      e.printStackTrace();
-      throw e;
+      Thread.currentThread().interrupt();
     }
   }
 
@@ -136,7 +134,7 @@ public class PCA9685Servo implements Closeable {
         i2cDevice.writeRegByte(LED0_OFF_L + 4 * channel, (byte) (off & 0xFF));
         i2cDevice.writeRegByte(LED0_OFF_H + 4 * channel, (byte) (off >> 8));
       } catch (IOException e) {
-        e.printStackTrace();
+        e.printStackTrace(); // NOSONAR
         throw e;
       }
     }
@@ -151,7 +149,7 @@ public class PCA9685Servo implements Closeable {
         i2cDevice.writeRegByte(ALL_LED_OFF_L, (byte) (off & 0xFF));
         i2cDevice.writeRegByte(ALL_LED_OFF_H, (byte) (off >> 8));
       } catch (IOException e) {
-        e.printStackTrace();
+        e.printStackTrace(); // NOSONAR
         throw e;
       }
     }

@@ -56,8 +56,28 @@ public class MainActivity extends Activity {
   private int usingChannel = 0;
 
   private PCA9685Servo pca9685Servo;
-  @SuppressWarnings("FieldCanBeLocal")
-  private Spinner spinnerChannel;
+
+  class SeekBarChangeListener implements SeekBar.OnSeekBarChangeListener {
+    @Override
+    public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+      updateText();
+    }
+
+    @Override
+    public void onStartTrackingTouch(SeekBar seekBar) {
+      // ignoreing this.
+    }
+
+    @Override
+    public void onStopTrackingTouch(SeekBar seekBar) {
+      try {
+        pca9685Servo.setServoAngle(usingChannel, seekBar.getProgress());
+        updateText();
+      } catch (Exception e) { // NOSONAR
+        Log.d("ERROR", "Exception: " + e.getMessage());
+      }
+    }
+  }
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -69,29 +89,9 @@ public class MainActivity extends Activity {
     seekBar = (SeekBar) findViewById(R.id.seekBar);
     textView = (TextView) findViewById(R.id.textView);
 
-    seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-      @Override
-      public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-        updateText();
-      }
+    seekBar.setOnSeekBarChangeListener(new SeekBarChangeListener());
 
-      @Override
-      public void onStartTrackingTouch(SeekBar seekBar) {
-        // ignoreing this.
-      }
-
-      @Override
-      public void onStopTrackingTouch(SeekBar seekBar) {
-        try {
-          pca9685Servo.setServoAngle(usingChannel, seekBar.getProgress());
-          updateText();
-        } catch (Exception e) {
-          Log.d("ERROR", "Exception: " + e.getMessage());
-        }
-      }
-    });
-
-    spinnerChannel = (Spinner) findViewById(R.id.spinnerChannel);
+    Spinner spinnerChannel = (Spinner) findViewById(R.id.spinnerChannel);
     spinnerChannel.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
       @Override
       public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -108,7 +108,7 @@ public class MainActivity extends Activity {
     try {
       pca9685Servo = new PCA9685Servo(PCA9685Servo.PCA9685_ADDRESS);
       pca9685Servo.setServoMinMaxPwm(0, 180, SERVO_MIN, SERVO_MAX);
-    } catch (Exception e) {
+    } catch (Exception e) { // NOSONAR
       Log.d("ERROR", "Exception: " + e.getMessage());
     }
 
