@@ -25,6 +25,15 @@ import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 
+import com.appyvet.rangebar.RangeBar;
+
+import org.androidannotations.annotations.AfterViews;
+import org.androidannotations.annotations.Click;
+import org.androidannotations.annotations.EActivity;
+import org.androidannotations.annotations.ItemSelect;
+import org.androidannotations.annotations.ViewById;
+
+import java.io.IOException;
 import java.util.Locale;
 
 
@@ -46,76 +55,131 @@ import java.util.Locale;
  * For more complex peripherals, look for an existing user-space driver, or implement one if none
  * is available.
  */
+
+@EActivity(R.layout.main_activity)
 public class MainActivity extends Activity {
   private static final String TAG = MainActivity.class.getSimpleName();
-  private SeekBar seekBar;
-  private TextView textView;
+
+  @ViewById(R.id.seekBar)
+  RangeBar rangeBar;
+
+  @ViewById(R.id.textView)
+  TextView textView;
 
   private static final int SERVO_MIN = 145;
   private static final int SERVO_MAX = 580;
   private int usingChannel = 0;
 
+  private int leftAngle = 0;
+  private int rightAngle = 100;
+
   private PCA9685Servo pca9685Servo;
+  private MCP23017 mcp23017;
 
-  class SeekBarChangeListener implements SeekBar.OnSeekBarChangeListener {
-    @Override
-    public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-      updateText();
-    }
+  class RangeBarChangeListener implements RangeBar.OnRangeBarChangeListener {
 
     @Override
-    public void onStartTrackingTouch(SeekBar seekBar) {
-      // ignoreing this.
-    }
-
-    @Override
-    public void onStopTrackingTouch(SeekBar seekBar) {
+    public void onRangeChangeListener(RangeBar rangeBar, int leftPinIndex, int rightPinIndex, String leftPinValue, String rightPinValue) {
       try {
-        pca9685Servo.setServoAngle(usingChannel, seekBar.getProgress());
+        leftAngle = leftPinIndex;
+        rightAngle = rightPinIndex;
+
         updateText();
       } catch (Exception e) { // NOSONAR
         Log.d("ERROR", "Exception: " + e.getMessage());
       }
+
     }
   }
 
-  @Override
-  protected void onCreate(Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
-    Log.d(TAG, "onCreate");
+  static int AF_RED  = 6;
+  static int AF_GREEN = 7;
+  static int AF_BLUE  = 8;
 
-    setContentView(R.layout.main_activity);
+  static int AF_E =   13;
+  static int AF_RW =   14;
+  static int AF_RS =   15;
 
-    seekBar = (SeekBar) findViewById(R.id.seekBar);
-    textView = (TextView) findViewById(R.id.textView);
+  static int AF_DB4 =   12;
+  static int AF_DB5 =   11;
+  static int AF_DB6 =   10;
+  static int AF_DB7 =  9;
 
-    seekBar.setOnSeekBarChangeListener(new SeekBarChangeListener());
+  static int AF_SELECT =  0;
+  static int AF_RIGHT =  1;
+  static int AF_DOWN =  2;
+  static int AF_UP =  3;
+  static int AF_LEFT =  4;
 
-    Spinner spinnerChannel = (Spinner) findViewById(R.id.spinnerChannel);
-    spinnerChannel.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-      @Override
-      public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-        usingChannel = position;
-        updateText();
-      }
 
-      @Override
-      public void onNothingSelected(AdapterView<?> parent) {
-        // not implemented or needed
-      }
-    });
+
+  @AfterViews
+  protected void onAfterViews() {
+    rangeBar.setOnRangeBarChangeListener(new RangeBarChangeListener());
 
     try {
       pca9685Servo = new PCA9685Servo(PCA9685Servo.PCA9685_ADDRESS);
       pca9685Servo.setServoMinMaxPwm(0, 180, SERVO_MIN, SERVO_MAX);
+
+      mcp23017 = new MCP23017((byte)0x20);
+
+
+      mcp23017.setPinMode(AF_RED, MCP23017.MCPPinMode.MODE_OUTPUT);
+      mcp23017.setPinMode(AF_GREEN, MCP23017.MCPPinMode.MODE_OUTPUT);
+      mcp23017.setPinMode(AF_BLUE, MCP23017.MCPPinMode.MODE_OUTPUT);
+      mcp23017.writePin(AF_RED, MCP23017.MCPPinState.STATE_HIGH);
+      mcp23017.writePin(AF_GREEN, MCP23017.MCPPinState.STATE_HIGH);
+      mcp23017.writePin(AF_BLUE, MCP23017.MCPPinState.STATE_HIGH);
+      // setBacklightColour (1,1,1) ;
+
+      for (int i = 0; i <= 4; ++i) {
+        mcp23017.setPinMode(i, MCP23017.MCPPinMode.MODE_INPUT_PULLUP);
+      }
+
+
+
+      mcp23017.writePin(AF_RED, MCP23017.MCPPinState.STATE_LOW);
+      mcp23017.writePin(AF_GREEN, MCP23017.MCPPinState.STATE_LOW);
+      mcp23017.writePin(AF_BLUE, MCP23017.MCPPinState.STATE_LOW);
+
     } catch (Exception e) { // NOSONAR
       Log.d("ERROR", "Exception: " + e.getMessage());
     }
+  }
 
+  @Click(R.id.buttonSetLeft)
+  void onButtonSetLeftClick(){
+    try {
+      if(pca9685Servo != null) {
+        pca9685Servo.setServoAngle(usingChannel, leftAngle);
+      }
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+  }
+
+  @Click(R.id.buttonSetRight)
+  void onButtonSetRightClick(){
+    try {
+      if(pca9685Servo != null) {
+        pca9685Servo.setServoAngle(usingChannel, rightAngle);
+      }
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+  }
+
+  @ItemSelect(R.id.spinnerChannel)
+  void onItemSelect(boolean selected, int position){
+    if(selected) {
+      usingChannel = position;
+      updateText();
+    }
   }
 
   private void updateText() {
-    textView.setText(String.format(Locale.getDefault(), "Channel %d Angle %d pwm %d", usingChannel, seekBar.getProgress(), pca9685Servo.getCurrentPwm()));
+    textView.setText(String.format(Locale.getDefault(), "Channel %d Angle Left %d Angle Right %d",
+        usingChannel, rangeBar.getLeftIndex(), rangeBar.getRightIndex()));
 
   }
 

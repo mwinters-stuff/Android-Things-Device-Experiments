@@ -5,6 +5,8 @@
     <string name="set_channel_1">Set Channel 1</string>
     <string name="angle">Angle</string>
     <string name="channel">Channel</string>
+    <string name="left">Left</string>
+    <string name="right">Right</string>
     <string-array name="channels">
         <item>0</item>
         <item>1</item>

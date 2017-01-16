@@ -6,24 +6,14 @@
     android:layout_height="match_parent">
 
     <Button
-        android:id="@+id/buttonSet0"
+        android:id="@+id/buttonSetLeft"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentStart="true"
-        android:layout_marginBottom="13dp"
-        android:layout_marginStart="17dp"
-        android:text="@string/set_channel_0"/>
-
-    <Button
-        android:id="@+id/buttonSet1"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignBaseline="@+id/buttonSet0"
-        android:layout_alignBottom="@+id/buttonSet0"
-        android:layout_marginStart="21dp"
-        android:layout_toEndOf="@+id/buttonSet0"
-        android:text="@string/set_channel_1"/>
+        android:text="@string/left"
+        android:layout_marginStart="13dp"
+        android:layout_alignBaseline="@+id/spinnerChannel"
+        android:layout_alignBottom="@+id/spinnerChannel"
+        android:layout_toEndOf="@+id/spinnerChannel"/>
 
     <TextView
         android:id="@+id/textView"
@@ -44,9 +34,9 @@
         android:text="@string/angle"
         android:textAppearance="@android:style/TextAppearance.Material.Headline"/>
 
-    <SeekBar
+    <com.appyvet.rangebar.RangeBar
+        xmlns:custom="http://schemas.android.com/apk/res-auto"
         android:id="@+id/seekBar"
-        style="@android:style/Widget.Material.SeekBar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentEnd="true"
@@ -54,7 +44,12 @@
         android:layout_below="@+id/textView2"
         android:layout_marginEnd="16dp"
         android:layout_marginStart="16dp"
-        android:max="180"/>
+
+        custom:tickStart="0"
+        custom:tickInterval="1"
+        custom:tickEnd="180"
+
+        />
 
     <TextView
         android:id="@+id/textView3"
@@ -74,5 +69,15 @@
         android:layout_toEndOf="@+id/textView3"
         android:dropDownWidth="150dp"
         android:entries="@array/channels"/>
+
+    <Button
+        android:id="@+id/buttonSetRight"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/right"
+        android:layout_marginStart="14dp"
+        android:layout_alignBaseline="@+id/buttonSetLeft"
+        android:layout_alignBottom="@+id/buttonSetLeft"
+        android:layout_toEndOf="@+id/buttonSetLeft"/>
 
 </RelativeLayout>
