@@ -17,15 +17,11 @@
 package com.example.androidthings.pca6895servotest;
 
 import android.app.Activity;
-import android.os.Bundle;
 import android.util.Log;
-import android.view.View;
-import android.widget.AdapterView;
-import android.widget.SeekBar;
-import android.widget.Spinner;
 import android.widget.TextView;
 
 import com.appyvet.rangebar.RangeBar;
+import com.google.android.things.pio.PeripheralManagerService;
 
 import org.androidannotations.annotations.AfterViews;
 import org.androidannotations.annotations.Click;
@@ -92,24 +88,24 @@ public class MainActivity extends Activity {
     }
   }
 
-  static int AF_RED  = 6;
-  static int AF_GREEN = 7;
-  static int AF_BLUE  = 8;
+  static final int AF_RED  = 6;
+  static final int AF_GREEN = 7;
+  static final int AF_BLUE  = 8;
 
-  static int AF_E =   13;
-  static int AF_RW =   14;
-  static int AF_RS =   15;
+  static final int AF_E =   13;
+  static final int AF_RW =   14;
+  static final int AF_RS =   15;
 
-  static int AF_DB4 =   12;
-  static int AF_DB5 =   11;
-  static int AF_DB6 =   10;
-  static int AF_DB7 =  9;
+  static final int AF_DB4 =   12;
+  static final int AF_DB5 =   11;
+  static final int AF_DB6 =   10;
+  static final int AF_DB7 =  9;
 
-  static int AF_SELECT =  0;
-  static int AF_RIGHT =  1;
-  static int AF_DOWN =  2;
-  static int AF_UP =  3;
-  static int AF_LEFT =  4;
+  static final int AF_SELECT =  0;
+  static final int AF_RIGHT =  1;
+  static final int AF_DOWN =  2;
+  static final int AF_UP =  3;
+  static final int AF_LEFT =  4;
 
 
 
@@ -118,7 +114,7 @@ public class MainActivity extends Activity {
     rangeBar.setOnRangeBarChangeListener(new RangeBarChangeListener());
 
     try {
-      pca9685Servo = new PCA9685Servo(PCA9685Servo.PCA9685_ADDRESS);
+      pca9685Servo = new PCA9685Servo(PCA9685Servo.PCA9685_ADDRESS, new PeripheralManagerService());
       pca9685Servo.setServoMinMaxPwm(0, 180, SERVO_MIN, SERVO_MAX);
 
       mcp23017 = new MCP23017((byte)0x20);
@@ -130,7 +126,7 @@ public class MainActivity extends Activity {
       mcp23017.writePin(AF_RED, MCP23017.MCPPinState.STATE_HIGH);
       mcp23017.writePin(AF_GREEN, MCP23017.MCPPinState.STATE_HIGH);
       mcp23017.writePin(AF_BLUE, MCP23017.MCPPinState.STATE_HIGH);
-      // setBacklightColour (1,1,1) ;
+
 
       for (int i = 0; i <= 4; ++i) {
         mcp23017.setPinMode(i, MCP23017.MCPPinMode.MODE_INPUT_PULLUP);
@@ -153,8 +149,8 @@ public class MainActivity extends Activity {
       if(pca9685Servo != null) {
         pca9685Servo.setServoAngle(usingChannel, leftAngle);
       }
-    } catch (IOException e) {
-      e.printStackTrace();
+    } catch (IOException e) { // NOSONAR - logged with android.
+      Log.d(TAG,"Exception on Left Click: " + e.getMessage());
     }
   }
 
@@ -164,8 +160,8 @@ public class MainActivity extends Activity {
       if(pca9685Servo != null) {
         pca9685Servo.setServoAngle(usingChannel, rightAngle);
       }
-    } catch (IOException e) {
-      e.printStackTrace();
+    } catch (IOException e) { // NOSONAR - logged with android.
+      Log.d(TAG,"Exception on Right Click: " + e.getMessage());
     }
   }
 

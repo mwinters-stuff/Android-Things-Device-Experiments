@@ -14,7 +14,7 @@ import java.util.List;
  * Copyright 2017 Mathew Winters
  */
 
-@SuppressWarnings({"WeakerAccess"})
+@SuppressWarnings({"WeakerAccess", "SameParameterValue"})
 public class PCA9685Servo implements Closeable {
   public static final byte PCA9685_ADDRESS = 0x40;
   private static final int MODE1 = 0x00;
@@ -48,8 +48,8 @@ public class PCA9685Servo implements Closeable {
   private int currentPwm;
 
 
-  public PCA9685Servo(byte address) throws IOException, InterruptedException {
-    PeripheralManagerService manager = new PeripheralManagerService();
+  public PCA9685Servo(byte address, PeripheralManagerService manager) throws IOException, InterruptedException {
+
     List<String> deviceList = manager.getI2cBusList();
     if (deviceList.isEmpty()) {
       i2cDevice = null;

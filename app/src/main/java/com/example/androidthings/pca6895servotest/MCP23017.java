@@ -16,35 +16,42 @@ import java.util.List;
  * Copyright 2017 Mathew Winters
  */
 
+@SuppressWarnings({"WeakerAccess", "unused"})
 public class MCP23017 implements Closeable {
-  //protected InterruptHandler intr;
   /**
    * Default IOCON state. Open-drain interrupts are used to allow any
    * voltage supported by the MCP23017 to be used on VDD.
    */
   private static final byte IOCON_BASE = 0b00000100;
-  /**
-   * Mask for mirroring the interrupts.
-   */
-  private static final byte IOCON_MIRROR = 0b01000000;
+  //private static final byte IOCON_MIRROR = 0b01000000; // NOSONAR
 
   // If initial bank is incorrect, then use 0x05
   private static final byte IOCON_ADDR = 0x0a;
   private static final byte A_TO_B_OFFSET = 0x01;
   private static final byte IODIR_ADDR = 0x00;
   private static final byte IPOL_ADDR = 0x02;
-  private static final byte GPINTEN_ADDR = 0x04;
-  private static final byte DEFVAL_ADDR = 0x06;
+  //private static final byte GPINTEN_ADDR = 0x04; // NOSONAR
+  // private static final byte DEFVAL_ADDR = 0x06; // NOSONAR
   private static final byte INTCON_ADDR = 0x08;
   private static final byte GPPU_ADDR = 0x0c;
-  private static final byte INTF_ADDR = 0x0e;
-  private static final byte INTCAP_ADDR = 0x10;
+  // private static final byte INTF_ADDR = 0x0e; // NOSONAR
+  // private static final byte INTCAP_ADDR = 0x10; // NOSONAR
   private static final byte GPIO_ADDR = 0x12;
-  private static final byte OLAT_ADDR = 0x14;
+  // private static final byte OLAT_ADDR = 0x14; // NOSONAR
   private static final byte ZEROS = 0b00000000;
   private static final byte ONES = (byte) 0b11111111;
 
   private static final String TAG = "MCP23017";
+  public static final String INVALID_PIN_NUMBER = "Invalid pin number";
+
+  public enum MCPPinMode {
+    MODE_OUTPUT, MODE_INPUT, MODE_INPUT_PULLUP
+  }
+
+  public enum MCPPinState {
+    STATE_LOW, STATE_HIGH
+  }
+
   // by default all outputs
   private MCPPinMode[] pinModes = new MCPPinMode[16];
   private I2cDevice i2cDevice;
@@ -61,8 +68,7 @@ public class MCP23017 implements Closeable {
         i2cDevice = manager.openI2cDevice(deviceList.get(0), address);
         if (i2cDevice != null) {
           Arrays.fill(pinModes, MCPPinMode.MODE_INPUT);
-          byte iocon = (byte) (IOCON_BASE | 0);//(intr.shouldMirrorInterrupts() ? IOCON_MIRROR : 0));
-          i2cDevice.writeRegByte(IOCON_ADDR, iocon);
+          i2cDevice.writeRegByte(IOCON_ADDR, IOCON_BASE );
           i2cDevice.writeRegByte(INTCON_ADDR, ZEROS);
           i2cDevice.writeRegByte(INTCON_ADDR + A_TO_B_OFFSET, ZEROS);
           i2cDevice.writeRegByte(IPOL_ADDR, ZEROS);
@@ -73,18 +79,13 @@ public class MCP23017 implements Closeable {
         Log.d(TAG, "IO Error " + e.getMessage());
         e.printStackTrace(); // NOSONAR
         throw e;
-//      } catch (InterruptedException e) {
-//        Log.d(TAG, "Error in sleep " + e.getMessage());
-//        e.printStackTrace(); // NOSONAR
-//        throw e;
       }
     }
   }
 
   public MCP23017 setPinMode(int pin, MCPPinMode mode) throws IOException {
-    //intr.dispatchInterrupts();
     if (pin < 0 || pin > 15)
-      throw new IllegalArgumentException("Invalid pin number");
+      throw new IllegalArgumentException(INVALID_PIN_NUMBER);
     pinModes[pin] = mode;
     int pinBit = pin % 8;
     int addrIodir = IODIR_ADDR + (pin > 7 ? A_TO_B_OFFSET : 0);
@@ -104,7 +105,7 @@ public class MCP23017 implements Closeable {
   }
 
   public void setBulkPinModeBankA(MCPPinMode mode) throws IOException {
-    //intr.dispatchInterrupts();
+
     for (int i = 0; i < 8; i++) {
       pinModes[i] = mode;
     }
@@ -124,7 +125,7 @@ public class MCP23017 implements Closeable {
   }
 
   public void setBulkPinModeBankB(MCPPinMode mode) throws IOException {
-//  intr.dispatchInterrupts();
+
     for (int i = 8; i < 16; i++) {
       pinModes[i] = mode;
     }
@@ -144,9 +145,9 @@ public class MCP23017 implements Closeable {
   }
 
   public MCPPinState readPin(int pin) throws IOException {
-    //intr.dispatchInterrupts();
+
     if (pin < 0 || pin > 15)
-      throw new IllegalArgumentException("Invalid pin number");
+      throw new IllegalArgumentException(INVALID_PIN_NUMBER);
     if (pinModes[pin] == MCPPinMode.MODE_OUTPUT) {
       throw new IllegalArgumentException("Pin is currently an output.");
     }
@@ -158,9 +159,9 @@ public class MCP23017 implements Closeable {
   }
 
   public MCP23017 writePin(int pin, MCPPinState val) throws IOException {
-    //intr.dispatchInterrupts();
+
     if (pin < 0 || pin > 15)
-      throw new IllegalArgumentException("Invalid pin number");
+      throw new IllegalArgumentException(INVALID_PIN_NUMBER);
     if (pinModes[pin] != MCPPinMode.MODE_OUTPUT) {
       throw new IllegalArgumentException("Pin is currently an input.");
     }
@@ -183,14 +184,5 @@ public class MCP23017 implements Closeable {
       i2cDevice.close();
     }
   }
-
-  public enum MCPPinMode {
-    MODE_OUTPUT, MODE_INPUT, MODE_INPUT_PULLUP
-  }
-
-  public enum MCPPinState {
-    STATE_LOW, STATE_HIGH
-  }
-
 
 }
