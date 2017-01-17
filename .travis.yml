@@ -7,7 +7,7 @@ android:
     - platform-tools
     - tools
 
-    - build-tools-24.0.3
+    - build-tools-25.0.2
     - android-24
     - extra-google-m2repository
     - extra-android-m2repository
@@ -19,6 +19,7 @@ script:
   # other script steps might be done before running the actual SonarQube analysis
   - sonar-scanner
   - ./gradlew assembleRelease
+  - ./gradlew test
 
 licenses:
   - 'android-sdk-preview-license'
