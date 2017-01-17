@@ -1,5 +1,6 @@
 package com.example.androidthings.pca6895servotest;
 
+import android.support.annotation.NonNull;
 import android.util.Log;
 
 import com.google.android.things.pio.I2cDevice;
@@ -10,6 +11,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+import static android.R.attr.value;
+
 
 /**
  * Created by mathew on 16/01/17.
@@ -18,46 +21,52 @@ import java.util.List;
 
 @SuppressWarnings({"WeakerAccess", "unused"})
 public class MCP23017 implements Closeable {
-  /**
-   * Default IOCON state. Open-drain interrupts are used to allow any
-   * voltage supported by the MCP23017 to be used on VDD.
-   */
-  private static final byte IOCON_BASE = 0b00000100;
-  //private static final byte IOCON_MIRROR = 0b01000000; // NOSONAR
 
-  // If initial bank is incorrect, then use 0x05
-  private static final byte IOCON_ADDR = 0x0a;
-  private static final byte A_TO_B_OFFSET = 0x01;
-  private static final byte IODIR_ADDR = 0x00;
-  private static final byte IPOL_ADDR = 0x02;
-  //private static final byte GPINTEN_ADDR = 0x04; // NOSONAR
-  // private static final byte DEFVAL_ADDR = 0x06; // NOSONAR
-  private static final byte INTCON_ADDR = 0x08;
-  private static final byte GPPU_ADDR = 0x0c;
-  // private static final byte INTF_ADDR = 0x0e; // NOSONAR
-  // private static final byte INTCAP_ADDR = 0x10; // NOSONAR
-  private static final byte GPIO_ADDR = 0x12;
-  // private static final byte OLAT_ADDR = 0x14; // NOSONAR
-  private static final byte ZEROS = 0b00000000;
-  private static final byte ONES = (byte) 0b11111111;
+  // MCP23x17 Registers
 
-  private static final String TAG = "MCP23017";
   public static final String INVALID_PIN_NUMBER = "Invalid pin number";
+  private static final int MCP23x17_IODIRA = 0x00;
+  private static final int MCP23x17_IPOLA = 0x02;
+  private static final int MCP23x17_GPINTENA = 0x04;
+  private static final int MCP23x17_DEFVALA = 0x06;
+  private static final int MCP23x17_INTCONA = 0x08;
+  private static final int MCP23x17_IOCON = 0x0A;
+  private static final int MCP23x17_GPPUA = 0x0C;
+  private static final int MCP23x17_INTFA = 0x0E;
+  private static final int MCP23x17_INTCAPA = 0x10;
+  private static final int MCP23x17_GPIOA = 0x12;
+  private static final int MCP23x17_OLATA = 0x14;
+  private static final int MCP23x17_IODIRB = 0x01;
+  private static final int MCP23x17_IPOLB = 0x03;
+  private static final int MCP23x17_GPINTENB = 0x05;
+  private static final int MCP23x17_DEFVALB = 0x07;
+  private static final int MCP23x17_INTCONB = 0x09;
+  private static final int MCP23x17_IOCONB = 0x0B;
+  private static final int MCP23x17_GPPUB = 0x0D;
+  private static final int MCP23x17_INTFB = 0x0F;
+  private static final int MCP23x17_INTCAPB = 0x11;
+  private static final int MCP23x17_GPIOB = 0x13;
 
-  public enum MCPPinMode {
-    MODE_OUTPUT, MODE_INPUT, MODE_INPUT_PULLUP
-  }
+  // Bits in the IOCON register
+  private static final int MCP23x17_OLATB = 0x15;
+  private static final int IOCON_UNUSED = 0x01;
+  private static final int IOCON_INTPOL = 0x02;
+  private static final int IOCON_ODR = 0x04;
+  private static final int IOCON_HAEN = 0x08;
+  private static final int IOCON_DISSLW = 0x10;
+  private static final int IOCON_SEQOP = 0x20;
+  private static final int IOCON_MIRROR = 0x40;
 
-  public enum MCPPinState {
-    STATE_LOW, STATE_HIGH
-  }
-
-  // by default all outputs
-  private MCPPinMode[] pinModes = new MCPPinMode[16];
+  // Default initialisation mode
+  private static final int IOCON_BANK_MODE = 0x80;
+  private static final int IOCON_INIT = IOCON_SEQOP;
+  private static final String TAG = "MCP23017";
+  private int data2;
+  private int data3;
   private I2cDevice i2cDevice;
 
-  public MCP23017(byte address) throws IOException {
-    PeripheralManagerService manager = new PeripheralManagerService();
+
+  public MCP23017(byte address, @NonNull PeripheralManagerService manager) throws IOException {
     List<String> deviceList = manager.getI2cBusList();
     if (deviceList.isEmpty()) {
       i2cDevice = null;
@@ -67,12 +76,11 @@ public class MCP23017 implements Closeable {
       try {
         i2cDevice = manager.openI2cDevice(deviceList.get(0), address);
         if (i2cDevice != null) {
-          Arrays.fill(pinModes, MCPPinMode.MODE_INPUT);
-          i2cDevice.writeRegByte(IOCON_ADDR, IOCON_BASE );
-          i2cDevice.writeRegByte(INTCON_ADDR, ZEROS);
-          i2cDevice.writeRegByte(INTCON_ADDR + A_TO_B_OFFSET, ZEROS);
-          i2cDevice.writeRegByte(IPOL_ADDR, ZEROS);
-          i2cDevice.writeRegByte(IPOL_ADDR + A_TO_B_OFFSET, ZEROS);
+
+          i2cDevice.writeRegByte(MCP23x17_IOCON, (byte) IOCON_INIT);
+
+          data2 = i2cDevice.readRegByte(MCP23x17_OLATA);
+          data3 = i2cDevice.readRegByte(MCP23x17_OLATB);
 
         }
       } catch (IOException e) {
@@ -82,100 +90,111 @@ public class MCP23017 implements Closeable {
       }
     }
   }
+  // by default all outputs
 
-  public MCP23017 setPinMode(int pin, MCPPinMode mode) throws IOException {
+  public void setPinMode(int pin, PinMode mode) throws IOException {
     if (pin < 0 || pin > 15)
       throw new IllegalArgumentException(INVALID_PIN_NUMBER);
-    pinModes[pin] = mode;
-    int pinBit = pin % 8;
-    int addrIodir = IODIR_ADDR + (pin > 7 ? A_TO_B_OFFSET : 0);
-    if (mode == MCPPinMode.MODE_OUTPUT)
-      i2cDevice.writeRegByte(addrIodir, (byte) ((i2cDevice.readRegByte(addrIodir) & 0xff) & (~(1 << pinBit))));
-    else {
-      i2cDevice.writeRegByte(addrIodir, (byte) ((i2cDevice.readRegByte(addrIodir) & 0xff) | (1 << pinBit)));
 
-      int addrGppu = GPPU_ADDR + (pin > 7 ? A_TO_B_OFFSET : 0);
-      if (mode == MCPPinMode.MODE_INPUT_PULLUP)
-        i2cDevice.writeRegByte(addrIodir, (byte) ((i2cDevice.readRegByte(addrGppu) & 0xff) | (1 << pinBit)));
-      else {
-        i2cDevice.writeRegByte(addrIodir, (byte) ((i2cDevice.readRegByte(addrGppu) & 0xff) & (~(1 << pinBit))));
-      }
+    int mask;
+    int old;
+    int reg;
+
+    if (pin < 8)    // Bank A
+      reg = MCP23x17_IODIRA;
+    else {
+      reg = MCP23x17_IODIRB;
+      pin &= 0x07;
     }
-    return this;
+
+    mask = 1 << pin;
+    old = i2cDevice.readRegByte(reg);
+
+    if (mode == PinMode.MODE_OUTPUT)
+      old &= (~mask);
+    else
+      old |= mask;
+
+    i2cDevice.writeRegByte(reg, (byte) old);
+
+    if(mode != PinMode.MODE_OUTPUT){
+      if (pin < 8)		// Bank A
+        reg  = MCP23x17_GPPUA ;
+      else
+      {
+        reg  = MCP23x17_GPPUB ;
+      }
+
+      mask = 1 << pin ;
+      old  = i2cDevice.readRegByte (reg) ;
+
+      if (mode == PinMode.MODE_INPUT_PULLUP)
+        old |=   mask ;
+      else
+        old &= (~mask) ;
+
+      i2cDevice.writeRegByte (reg, (byte)old) ;
+    }
+
   }
 
-  public void setBulkPinModeBankA(MCPPinMode mode) throws IOException {
-
-    for (int i = 0; i < 8; i++) {
-      pinModes[i] = mode;
-    }
-    if (mode == MCPPinMode.MODE_OUTPUT)
-      i2cDevice.writeRegByte(IODIR_ADDR, ZEROS);
-    else {
-      i2cDevice.writeRegByte(IODIR_ADDR, ONES);
-
-      if (mode == MCPPinMode.MODE_INPUT_PULLUP)
-        i2cDevice.writeRegByte(GPPU_ADDR, ONES);
-
-      else {
-        i2cDevice.writeRegByte(GPPU_ADDR, ZEROS);
-
-      }
-    }
-  }
-
-  public void setBulkPinModeBankB(MCPPinMode mode) throws IOException {
-
-    for (int i = 8; i < 16; i++) {
-      pinModes[i] = mode;
-    }
-    if (mode == MCPPinMode.MODE_OUTPUT)
-      i2cDevice.writeRegByte(IODIR_ADDR + A_TO_B_OFFSET, ZEROS);
-    else {
-      i2cDevice.writeRegByte(IODIR_ADDR + A_TO_B_OFFSET, ONES);
-
-      if (mode == MCPPinMode.MODE_INPUT_PULLUP)
-        i2cDevice.writeRegByte(GPPU_ADDR + A_TO_B_OFFSET, ONES);
-
-      else {
-        i2cDevice.writeRegByte(GPPU_ADDR + A_TO_B_OFFSET, ZEROS);
-
-      }
-    }
-  }
-
-  public MCPPinState readPin(int pin) throws IOException {
+  public PinState readPin(int pin) throws IOException {
 
     if (pin < 0 || pin > 15)
       throw new IllegalArgumentException(INVALID_PIN_NUMBER);
-    if (pinModes[pin] == MCPPinMode.MODE_OUTPUT) {
-      throw new IllegalArgumentException("Pin is currently an output.");
+
+    int mask;
+    int value;
+    int gpio;
+
+    if (pin < 8)    // Bank A
+      gpio = MCP23x17_GPIOA;
+    else {
+      gpio = MCP23x17_GPIOB;
+      pin &= 0x07;
     }
 
-    int pinBit = pin % 8;
-    int addrGpio = GPIO_ADDR + (pin > 7 ? A_TO_B_OFFSET : 0);
-    byte gpioVal = i2cDevice.readRegByte(addrGpio);
-    return (((gpioVal & 0xff) & (1 << pinBit)) != 0) ? MCPPinState.STATE_LOW : MCPPinState.STATE_HIGH;
+    mask = 1 << pin;
+    value = i2cDevice.readRegByte(gpio);
+
+    if ((value & mask) == 0)
+      return PinState.LOW;
+    else
+      return PinState.HIGH;
   }
 
-  public MCP23017 writePin(int pin, MCPPinState val) throws IOException {
+  public void writePin(int pin, PinState value) throws IOException {
 
     if (pin < 0 || pin > 15)
       throw new IllegalArgumentException(INVALID_PIN_NUMBER);
-    if (pinModes[pin] != MCPPinMode.MODE_OUTPUT) {
-      throw new IllegalArgumentException("Pin is currently an input.");
+    int bit;
+
+
+    bit = 1 << (pin & 7);
+
+    if (pin < 8)      // Bank A
+    {
+      int old = data2;
+
+      if (value == PinState.LOW)
+        old &= (~bit);
+      else
+        old |= bit;
+
+      i2cDevice.writeRegByte(MCP23x17_GPIOA, (byte) old);
+      data2 = old;
+    } else        // Bank B
+    {
+      int old = data3;
+
+      if (value == PinState.LOW)
+        old &= (~bit);
+      else
+        old |= bit;
+
+      i2cDevice.writeRegByte(MCP23x17_GPIOB, (byte) old);
+      data3 = old;
     }
-
-    int pinBit = pin % 8;
-    int addrGpio = GPIO_ADDR + (pin > 7 ? A_TO_B_OFFSET : 0);
-    if (val == MCPPinState.STATE_LOW) {
-      i2cDevice.writeRegByte(addrGpio, (byte) ((i2cDevice.readRegByte(addrGpio) & 0xff) & (~(1 << pinBit))));
-    } else {
-      i2cDevice.writeRegByte(addrGpio, (byte) ((i2cDevice.readRegByte(addrGpio) & 0xff) | (1 << pinBit)));
-    }
-
-    return this;
-
   }
 
   @Override
@@ -184,5 +203,14 @@ public class MCP23017 implements Closeable {
       i2cDevice.close();
     }
   }
+
+  public enum PinMode {
+    MODE_OUTPUT, MODE_INPUT, MODE_INPUT_PULLUP
+  }
+
+  public enum PinState {
+    LOW, HIGH
+  }
+
 
 }

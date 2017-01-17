@@ -1,5 +1,6 @@
 package com.example.androidthings.pca6895servotest;
 
+import android.support.annotation.NonNull;
 import android.util.Log;
 
 import com.google.android.things.pio.I2cDevice;
@@ -48,7 +49,7 @@ public class PCA9685Servo implements Closeable {
   private int currentPwm;
 
 
-  public PCA9685Servo(byte address, PeripheralManagerService manager) throws IOException, InterruptedException {
+  public PCA9685Servo(byte address, @NonNull PeripheralManagerService manager) throws IOException, InterruptedException {
 
     List<String> deviceList = manager.getI2cBusList();
     if (deviceList.isEmpty()) {
