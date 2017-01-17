@@ -8,18 +8,15 @@ import com.google.android.things.pio.PeripheralManagerService;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
-
-import static android.R.attr.value;
 
 
 /**
  * Created by mathew on 16/01/17.
  * Copyright 2017 Mathew Winters
  */
-
-@SuppressWarnings({"WeakerAccess", "unused"})
+// NOSONAR
+@SuppressWarnings({"WeakerAccess", "unused","squid:S00115", "squid:S1068"})
 public class MCP23017 implements Closeable {
 
   // MCP23x17 Registers
@@ -99,15 +96,16 @@ public class MCP23017 implements Closeable {
     int mask;
     int old;
     int reg;
+    int pinMasked = pin;
 
-    if (pin < 8)    // Bank A
+    if (pinMasked < 8)    // Bank A
       reg = MCP23x17_IODIRA;
     else {
       reg = MCP23x17_IODIRB;
-      pin &= 0x07;
+      pinMasked &= 0x07;
     }
 
-    mask = 1 << pin;
+    mask = 1 << pinMasked;
     old = i2cDevice.readRegByte(reg);
 
     if (mode == PinMode.MODE_OUTPUT)
@@ -117,74 +115,74 @@ public class MCP23017 implements Closeable {
 
     i2cDevice.writeRegByte(reg, (byte) old);
 
-    if(mode != PinMode.MODE_OUTPUT){
-      if (pin < 8)		// Bank A
-        reg  = MCP23x17_GPPUA ;
-      else
-      {
-        reg  = MCP23x17_GPPUB ;
+    if (mode != PinMode.MODE_OUTPUT) {
+      if (pin < 8)    // Bank A
+        reg = MCP23x17_GPPUA;
+      else {
+        reg = MCP23x17_GPPUB;
       }
 
-      mask = 1 << pin ;
-      old  = i2cDevice.readRegByte (reg) ;
+      mask = 1 << pinMasked;
+      old = i2cDevice.readRegByte(reg);
 
       if (mode == PinMode.MODE_INPUT_PULLUP)
-        old |=   mask ;
+        old |= mask;
       else
-        old &= (~mask) ;
+        old &= (~mask);
 
-      i2cDevice.writeRegByte (reg, (byte)old) ;
+      i2cDevice.writeRegByte(reg, (byte) old);
     }
 
   }
 
   public PinState readPin(int pin) throws IOException {
 
-    if (pin < 0 || pin > 15)
+    if (pin < 0 || pin > 15) {
       throw new IllegalArgumentException(INVALID_PIN_NUMBER);
+    }
 
     int mask;
     int value;
     int gpio;
+    int pinMasked = pin;
 
-    if (pin < 8)    // Bank A
+    if (pinMasked < 8) {    // Bank A
       gpio = MCP23x17_GPIOA;
-    else {
+    } else {
       gpio = MCP23x17_GPIOB;
-      pin &= 0x07;
+      pinMasked &= 0x07;
     }
 
-    mask = 1 << pin;
+    mask = 1 << pinMasked;
     value = i2cDevice.readRegByte(gpio);
 
-    if ((value & mask) == 0)
+    if ((value & mask) == 0) {
       return PinState.LOW;
-    else
+    } else {
       return PinState.HIGH;
+    }
   }
 
   public void writePin(int pin, PinState value) throws IOException {
 
-    if (pin < 0 || pin > 15)
+    if (pin < 0 || pin > 15) {
       throw new IllegalArgumentException(INVALID_PIN_NUMBER);
-    int bit;
+    }
+    int bit = 1 << (pin & 7);
 
+    if (pin < 8) {
 
-    bit = 1 << (pin & 7);
-
-    if (pin < 8)      // Bank A
-    {
       int old = data2;
 
-      if (value == PinState.LOW)
+      if (value == PinState.LOW) {
         old &= (~bit);
-      else
+      } else {
         old |= bit;
+      }
 
       i2cDevice.writeRegByte(MCP23x17_GPIOA, (byte) old);
       data2 = old;
-    } else        // Bank B
-    {
+    } else {
       int old = data3;
 
       if (value == PinState.LOW)

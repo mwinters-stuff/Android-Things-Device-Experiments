@@ -26,7 +26,6 @@ import static org.mockito.Mockito.when;
  * @author MWinters
  */
 @RunWith(MockitoJUnitRunner.class)
-@MediumTest
 public class PCA9685ServoTest {
   private static final int MODE1 = 0x00;
   private static final int MODE2 = 0x01;
