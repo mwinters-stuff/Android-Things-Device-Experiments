@@ -57,7 +57,7 @@ public class LCDDriverTest {
     // 8 BIT MODE 3 TIMES
     for(int x = 0; x < 3; x++) {
       inOrder.verify(ioDeviceMock).writePin(AF_RS, IODeviceInterface.PinState.LOW);
-      inOrder.verify(ioDeviceMock).writePin(AF_DB4, IODeviceInterface.PinState.LOW);
+      inOrder.verify(ioDeviceMock).writePin(AF_DB4, IODeviceInterface.PinState.HIGH);
       inOrder.verify(ioDeviceMock).writePin(AF_DB5, IODeviceInterface.PinState.HIGH);
       inOrder.verify(ioDeviceMock).writePin(AF_DB6, IODeviceInterface.PinState.LOW);
       inOrder.verify(ioDeviceMock).writePin(AF_DB7, IODeviceInterface.PinState.LOW);
@@ -78,8 +78,8 @@ public class LCDDriverTest {
 
     // lCD Lines 8 bits of command.
     inOrder.verify(ioDeviceMock).writePin(AF_RS, IODeviceInterface.PinState.LOW);
-    inOrder.verify(ioDeviceMock).writePin(AF_DB4, IODeviceInterface.PinState.HIGH);
-    inOrder.verify(ioDeviceMock).writePin(AF_DB5, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB4, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB5, IODeviceInterface.PinState.HIGH);
     inOrder.verify(ioDeviceMock).writePin(AF_DB6, IODeviceInterface.PinState.LOW);
     inOrder.verify(ioDeviceMock).writePin(AF_DB7, IODeviceInterface.PinState.LOW);
     // strobe
@@ -94,13 +94,134 @@ public class LCDDriverTest {
     inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.HIGH);
     inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.LOW);
 
+    // lcdDisplay
+    inOrder.verify(ioDeviceMock).writePin(AF_RS, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB4, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB5, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB6, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB7, IODeviceInterface.PinState.LOW);
+    // strobe
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.LOW);
+
+    inOrder.verify(ioDeviceMock).writePin(AF_DB4, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB5, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB6, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB7, IODeviceInterface.PinState.HIGH);
+    // strobe
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.LOW);
+
     // lcdCursor
+    inOrder.verify(ioDeviceMock).writePin(AF_RS, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB4, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB5, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB6, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB7, IODeviceInterface.PinState.LOW);
+    // strobe
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.LOW);
+
+    inOrder.verify(ioDeviceMock).writePin(AF_DB4, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB5, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB6, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB7, IODeviceInterface.PinState.HIGH);
+    // strobe
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.LOW);
 
     // lcdCursorBlink
+    inOrder.verify(ioDeviceMock).writePin(AF_RS, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB4, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB5, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB6, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB7, IODeviceInterface.PinState.LOW);
+    // strobe
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.LOW);
+
+    inOrder.verify(ioDeviceMock).writePin(AF_DB4, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB5, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB6, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB7, IODeviceInterface.PinState.HIGH);
+    // strobe
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.LOW);
 
     // lcdClear
+    inOrder.verify(ioDeviceMock).writePin(AF_RS, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB4, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB5, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB6, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB7, IODeviceInterface.PinState.LOW);
+    // strobe
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.LOW);
 
-//      inOrder.verifyNoMoreInteractions();
+    inOrder.verify(ioDeviceMock).writePin(AF_DB4, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB5, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB6, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB7, IODeviceInterface.PinState.LOW);
+    // strobe
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.LOW);
+
+    // LCD Home from LCD Clear
+    inOrder.verify(ioDeviceMock).writePin(AF_RS, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB4, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB5, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB6, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB7, IODeviceInterface.PinState.LOW);
+    // strobe
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.LOW);
+
+    inOrder.verify(ioDeviceMock).writePin(AF_DB4, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB5, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB6, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB7, IODeviceInterface.PinState.LOW);
+    // strobe
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.LOW);
+
+
+    // LCD_ENTRY | LCD_ENTRY_ID
+    inOrder.verify(ioDeviceMock).writePin(AF_RS, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB4, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB5, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB6, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB7, IODeviceInterface.PinState.LOW);
+    // strobe
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.LOW);
+
+    inOrder.verify(ioDeviceMock).writePin(AF_DB4, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB5, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB6, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB7, IODeviceInterface.PinState.LOW);
+    // strobe
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.LOW);
+
+    // LCD_CDSHIFT | LCD_CDSHIFT_RL
+    inOrder.verify(ioDeviceMock).writePin(AF_RS, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB4, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB5, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB6, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB7, IODeviceInterface.PinState.LOW);
+    // strobe
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.LOW);
+
+    inOrder.verify(ioDeviceMock).writePin(AF_DB4, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB5, IODeviceInterface.PinState.LOW);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB6, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_DB7, IODeviceInterface.PinState.LOW);
+    // strobe
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.HIGH);
+    inOrder.verify(ioDeviceMock).writePin(AF_E, IODeviceInterface.PinState.LOW);
+
+    inOrder.verifyNoMoreInteractions();
   }
 
   @Test
