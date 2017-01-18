@@ -31,11 +31,11 @@ import org.androidannotations.annotations.Click;
 import org.androidannotations.annotations.EActivity;
 import org.androidannotations.annotations.ItemSelect;
 import org.androidannotations.annotations.KeyDown;
-import org.androidannotations.annotations.KeyUp;
 import org.androidannotations.annotations.ViewById;
 import org.androidannotations.annotations.sharedpreferences.Pref;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Locale;
 
 
@@ -79,9 +79,6 @@ public class MainActivity extends Activity {
   private int usingChannel = 0;
 
 
-  private PCA9685Servo pca9685Servo;
-  private MCP23017 mcp23017;
-
   class RangeBarChangeListener implements RangeBar.OnRangeBarChangeListener {
 
     @Override
@@ -110,11 +107,13 @@ public class MainActivity extends Activity {
   static final int AF_DB6 =   10;
   static final int AF_DB7 =  9;
 
+  private LCDDriver lcdDriver;
+
   static final int AF_SELECT =  0;
-  static final int AF_RIGHT =  1;
-  static final int AF_DOWN =  2;
-  static final int AF_UP =  3;
-  static final int AF_LEFT =  4;
+//  static final int AF_RIGHT =  1;
+//  static final int AF_DOWN =  2;
+//  static final int AF_UP =  3;
+//  static final int AF_LEFT =  4;
 
   enum ServoPosition{
     LEFT,RIGHT
@@ -132,11 +131,14 @@ public class MainActivity extends Activity {
 
     try {
       PeripheralManagerService peripheralManagerService = new PeripheralManagerService();
-      pca9685Servo = new PCA9685Servo(PCA9685Servo.PCA9685_ADDRESS, peripheralManagerService);
-      pca9685Servo.setServoMinMaxPwm(0, 180, SERVO_MIN, SERVO_MAX);
-      deviceHolder.setDevicePCAServo(pca9685Servo);
 
-      mcp23017 = new MCP23017((byte)0x20,peripheralManagerService);
+      @SuppressWarnings("squid:S2095")
+      PCA9685Servo pca9685Servo = new PCA9685Servo(PCA9685Servo.PCA9685_ADDRESS, peripheralManagerService);
+      pca9685Servo.setServoMinMaxPwm(0, 180, SERVO_MIN, SERVO_MAX);
+      deviceHolder.setDevice(DeviceHolder.Devices.PCA9685SERVO,pca9685Servo);
+
+      @SuppressWarnings("squid:S2095")
+      MCP23017 mcp23017 = new MCP23017((byte) 0x20, peripheralManagerService);
 
 
       mcp23017.setPinMode(AF_RED, MCP23017.PinMode.MODE_OUTPUT);
@@ -145,16 +147,16 @@ public class MainActivity extends Activity {
       mcp23017.writePin(AF_RED, MCP23017.PinState.HIGH);
       mcp23017.writePin(AF_GREEN, MCP23017.PinState.HIGH);
       mcp23017.writePin(AF_BLUE, MCP23017.PinState.HIGH);
-      deviceHolder.setDeviceMCP23017(mcp23017);
 
+      deviceHolder.setDevice(DeviceHolder.Devices.MCP23017, mcp23017);
 
+      doSelect();
 
+      mcp23017.setPinMode(AF_RW, MCP23017.PinMode.MODE_OUTPUT);
+      mcp23017.writePin(AF_RW, MCP23017.PinState.LOW);
+      lcdDriver = new LCDDriver(mcp23017,2,16,4,AF_RS,AF_E,AF_DB4,AF_DB5,AF_DB6,AF_DB7,0,0,0,0);
 
-      mcp23017.writePin(AF_RED, MCP23017.PinState.LOW);
-      mcp23017.writePin(AF_GREEN, MCP23017.PinState.LOW);
-      mcp23017.writePin(AF_BLUE, MCP23017.PinState.HIGH);
-
-
+      lcdDriver.lcdPuts("Hello");
 
     } catch (Exception e) { // NOSONAR
       Log.d("ERROR", "Exception: " + e.getMessage());
@@ -179,8 +181,9 @@ public class MainActivity extends Activity {
   @Click(R.id.buttonSetLeft)
   void onButtonSetLeftClick(){
     try {
-      if(pca9685Servo != null) {
-        pca9685Servo.setServoAngle(usingChannel, appPrefs.angleLeft().get());
+      IODeviceInterface deviceInterface = DeviceHolder.getInstance().getDevice(DeviceHolder.Devices.PCA9685SERVO);
+      if(deviceInterface != null && deviceInterface instanceof PCA9685Servo) {
+        ((PCA9685Servo)deviceInterface).setServoAngle(usingChannel, appPrefs.angleLeft().get());
         servoPositions[usingChannel] = ServoPosition.LEFT;
       }
     } catch (IOException e) { // NOSONAR - logged with android.
@@ -191,8 +194,9 @@ public class MainActivity extends Activity {
   @Click(R.id.buttonSetRight)
   void onButtonSetRightClick(){
     try {
-      if(pca9685Servo != null) {
-        pca9685Servo.setServoAngle(usingChannel, appPrefs.angleRight().get());
+      IODeviceInterface deviceInterface = DeviceHolder.getInstance().getDevice(DeviceHolder.Devices.PCA9685SERVO);
+      if(deviceInterface != null && deviceInterface instanceof PCA9685Servo) {
+        ((PCA9685Servo)deviceInterface).setServoAngle(usingChannel, appPrefs.angleRight().get());
         servoPositions[usingChannel] = ServoPosition.RIGHT;
       }
     } catch (IOException e) { // NOSONAR - logged with android.
@@ -226,22 +230,69 @@ public class MainActivity extends Activity {
   void onKeyDown0(KeyEvent keyEvent){
     int channel =keyEvent.getKeyCode() - KeyEvent.KEYCODE_0;
     Log.d(TAG,"Key Down " + channel);
-
     try {
-      if(pca9685Servo != null) {
-        if(servoPositions[channel] == ServoPosition.LEFT) {
-          pca9685Servo.setServoAngle(channel, appPrefs.angleRight().get());
-          servoPositions[channel] = ServoPosition.RIGHT;
-        }else{
-          pca9685Servo.setServoAngle(channel, appPrefs.angleLeft().get());
-          servoPositions[channel] = ServoPosition.LEFT;
-        }
+      if(channel == AF_SELECT){
+        doSelect();
+      }else{
+        swapChannel(channel-1);
       }
+
     } catch (IOException e) { // NOSONAR - logged with android.
       Log.d(TAG,"Exception on Right Click: " + e.getMessage());
+    }
+  }
+
+  int currentColour = 0;
+
+  class Rgb{
+    Rgb(boolean r, boolean g, boolean b){
+      this.r = r;
+      this.g = g;
+      this.b = b;
+    }
+    final boolean  r;
+    final boolean  g;
+    final boolean  b;
+  }
+
+  Rgb[] rbgs = {
+      new Rgb(true,false,false),
+      new Rgb(false,true,false),
+      new Rgb(false,false,true),
+      new Rgb(true,true,true),
+      new Rgb(true,false,true),
+      new Rgb(false,true,true),
+      new Rgb(true,true,false),
+  };
+
+  private void doSelect() throws IOException {
+    IODeviceInterface deviceInterface = DeviceHolder.getInstance().getDevice(DeviceHolder.Devices.MCP23017);
+
+    deviceInterface.writePin(AF_RED, rbgs[currentColour].r ? IODeviceInterface.PinState.LOW :  IODeviceInterface.PinState.HIGH);
+    deviceInterface.writePin(AF_GREEN, rbgs[currentColour].g ? IODeviceInterface.PinState.LOW :  IODeviceInterface.PinState.HIGH);
+    deviceInterface.writePin(AF_BLUE, rbgs[currentColour].b ? IODeviceInterface.PinState.LOW :  IODeviceInterface.PinState.HIGH);
+
+    currentColour ++;
+    if(currentColour == 7){
+      currentColour = 0;
     }
 
   }
 
-
+  private void swapChannel(int channel) throws IOException {
+    IODeviceInterface deviceInterface = DeviceHolder.getInstance().getDevice(DeviceHolder.Devices.PCA9685SERVO);
+    if(deviceInterface != null && deviceInterface instanceof PCA9685Servo) {
+      if(servoPositions[channel] == ServoPosition.LEFT) {
+        ((PCA9685Servo)deviceInterface).setServoAngle(channel, appPrefs.angleRight().get());
+        servoPositions[channel] = ServoPosition.RIGHT;
+        lcdDriver.lcdClear();
+        lcdDriver.lcdPuts("CH " + channel + " RIGHT");
+      }else{
+        ((PCA9685Servo)deviceInterface).setServoAngle(channel, appPrefs.angleLeft().get());
+        servoPositions[channel] = ServoPosition.LEFT;
+        lcdDriver.lcdClear();
+        lcdDriver.lcdPuts("CH " + channel + " LEFT");
+      }
+    }
+  }
 }

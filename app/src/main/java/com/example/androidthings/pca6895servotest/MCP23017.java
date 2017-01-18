@@ -6,7 +6,6 @@ import android.util.Log;
 import com.google.android.things.pio.I2cDevice;
 import com.google.android.things.pio.PeripheralManagerService;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 
@@ -15,9 +14,9 @@ import java.util.List;
  * Created by mathew on 16/01/17.
  * Copyright 2017 Mathew Winters
  */
-// NOSONAR
+
 @SuppressWarnings({"WeakerAccess", "unused","squid:S00115", "squid:S1068"})
-public class MCP23017 implements Closeable {
+public class MCP23017 implements IODeviceInterface {
 
   // MCP23x17 Registers
 
@@ -57,7 +56,7 @@ public class MCP23017 implements Closeable {
   // Default initialisation mode
   private static final int IOCON_BANK_MODE = 0x80;
   private static final int IOCON_INIT = IOCON_SEQOP;
-  private static final String TAG = "MCP23017";
+  private static final String TAG = MCP23017.class.getName();
   private int data2;
   private int data3;
   private I2cDevice i2cDevice;
@@ -87,9 +86,9 @@ public class MCP23017 implements Closeable {
       }
     }
   }
-  // by default all outputs
 
-  public void setPinMode(int pin, PinMode mode) throws IOException {
+  @Override
+  public void setPinMode(int pin, @NonNull PinMode mode) throws IOException {
     if (pin < 0 || pin > 15)
       throw new IllegalArgumentException(INVALID_PIN_NUMBER);
 
@@ -135,6 +134,8 @@ public class MCP23017 implements Closeable {
 
   }
 
+  @Override
+  @NonNull
   public PinState readPin(int pin) throws IOException {
 
     if (pin < 0 || pin > 15) {
@@ -163,7 +164,8 @@ public class MCP23017 implements Closeable {
     }
   }
 
-  public void writePin(int pin, PinState value) throws IOException {
+  @Override
+  public void writePin(int pin, @NonNull PinState value) throws IOException {
 
     if (pin < 0 || pin > 15) {
       throw new IllegalArgumentException(INVALID_PIN_NUMBER);
@@ -196,19 +198,27 @@ public class MCP23017 implements Closeable {
   }
 
   @Override
+  public void setPwmFreq(int freqHz) throws IOException {
+    throw new UnsupportedOperationException("setPwmFreq on MCP23017");
+  }
+
+  @Override
+  public void setAllPwm(int on, int off) throws IOException {
+    throw new UnsupportedOperationException("setAllPwm on MCP23017");
+  }
+
+  @Override
+  public void setPwm(int channel, int on, int off) throws IOException {
+    throw new UnsupportedOperationException("setPwm on MCP23017");
+  }
+
+  @Override
   public void close() throws IOException {
     if (i2cDevice != null) {
       i2cDevice.close();
     }
   }
 
-  public enum PinMode {
-    MODE_OUTPUT, MODE_INPUT, MODE_INPUT_PULLUP
-  }
-
-  public enum PinState {
-    LOW, HIGH
-  }
 
 
 }

@@ -1,35 +1,41 @@
 package com.example.androidthings.pca6895servotest;
 
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
+
+import java.util.EnumMap;
+import java.util.Map;
+
 /**
  * Created by mathew on 17/01/17.
  * Copyright 2017 Mathew Winters
  */
+@SuppressWarnings("WeakerAccess")
 public class DeviceHolder {
   private static DeviceHolder ourInstance = new DeviceHolder();
 
-  private MCP23017 deviceMCP23017;
-  private PCA9685Servo devicePCAServo;
+  public enum Devices{
+    MCP23017,
+    PCA9685,
+    PCA9685SERVO
+  }
+
+  private Map<Devices,IODeviceInterface> devices = new EnumMap<>(Devices.class);
+
+  private DeviceHolder() {
+  }
 
   public static DeviceHolder getInstance() {
     return ourInstance;
   }
 
-  private DeviceHolder() {
+  @Nullable
+  public IODeviceInterface getDevice(@NonNull Devices device) {
+    return devices.get(device);
   }
 
-  public MCP23017 getDeviceMCP23017() {
-    return deviceMCP23017;
+  public void setDevice(@NonNull Devices device, IODeviceInterface deviceInterface) {
+    devices.put(device, deviceInterface);
   }
 
-  public void setDeviceMCP23017(MCP23017 deviceMCP23017) {
-    this.deviceMCP23017 = deviceMCP23017;
-  }
-
-  public PCA9685Servo getDevicePCAServo() {
-    return devicePCAServo;
-  }
-
-  public void setDevicePCAServo(PCA9685Servo devicePCAServo) {
-    this.devicePCAServo = devicePCAServo;
-  }
 }

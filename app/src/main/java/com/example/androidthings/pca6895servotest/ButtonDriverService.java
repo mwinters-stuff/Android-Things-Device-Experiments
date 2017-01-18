@@ -3,6 +3,8 @@ package com.example.androidthings.pca6895servotest;
 import android.app.Service;
 import android.content.Intent;
 import android.os.IBinder;
+import android.os.SystemClock;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
 import android.view.InputDevice;
@@ -18,7 +20,7 @@ import java.io.IOException;
  * Copyright 2017 Mathew Winters
  */
 
-
+@SuppressWarnings({"squid:S3776","squid:MethodCyclomaticComplexity","squid:S1151"})
 public class ButtonDriverService extends Service {
   private static final String DRIVER_NAME = "AdafruitButtons";
   private static final String TAG = ButtonDriverService.DRIVER_NAME;
@@ -27,7 +29,6 @@ public class ButtonDriverService extends Service {
   private static final int[] KEY_CODES = {KeyEvent.KEYCODE_0, KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_3, KeyEvent.KEYCODE_4};
 
   private InputDriver inputDriver;
-  private Thread thread;
   private boolean keepRunning;
 
 
@@ -55,60 +56,122 @@ public class ButtonDriverService extends Service {
   }
 
 
-  @Override
-  public int onStartCommand(Intent intent, int flags, int startId) {
-    keepRunning = true;
-    thread = new Thread(new Runnable() {
-      MCP23017.PinState[] pinStates = new MCP23017.PinState[5];
 
-      @Override
-      public void run() {
-        try {
-          DeviceHolder deviceHolder = DeviceHolder.getInstance();
-          Log.d(TAG,"Starting service thread");
+  private class PinReader implements Runnable {
+    private long[] prevDownTimeMillis = {-1L,-1L,-1L,-1L,-1L};
+    private boolean[] maskDown = {false,false,false,false,false};
+    private int[] stateDown = {0,0,0,0,0};
+    IODeviceInterface.PinState[] pinStates = new IODeviceInterface.PinState[5];
+
+    @Override
+    @SuppressWarnings("squid:S134")
+    public void run() {
+      try {
+        DeviceHolder deviceHolder = DeviceHolder.getInstance();
+        IODeviceInterface deviceInterface = deviceHolder.getDevice(DeviceHolder.Devices.MCP23017);
+        if (deviceInterface != null) {
+
+          Log.d(TAG, "Starting service thread");
           for (int i = 0; i <= 4; ++i) {
-            deviceHolder.getDeviceMCP23017().setPinMode(i, MCP23017.PinMode.MODE_INPUT_PULLUP);
-            pinStates[i] = deviceHolder.getDeviceMCP23017().readPin(i);
+            deviceInterface.setPinMode(i, IODeviceInterface.PinMode.MODE_INPUT_PULLUP);
+            pinStates[i] = deviceInterface.readPin(i);
           }
+
 
           while (keepRunning) {
             for (int i = 0; i < 5; i++) {
-              MCP23017.PinState state = deviceHolder.getDeviceMCP23017().readPin((byte) i);
-              if (state != pinStates[i]) {
-                Log.d(TAG,"State change " + i + state);
-                triggerEvent(i, state == MCP23017.PinState.LOW);
-                pinStates[i] = state;
-                Thread.sleep(10);
+              if (checkButtonPressDebounced(deviceInterface, i)) {
+                Log.d(TAG, "State change down " + i);
+                triggerEvent(i, true);
+                triggerEvent(i, false);
+
               }
             }
             Thread.sleep(1);
 
           }
-          Log.d(TAG,"Thread stopping");
-
-        } catch (IOException e) { /// NOSONAR
-          e.printStackTrace();
-        } catch (InterruptedException e) {
-          Thread.currentThread().interrupt();
         }
+        Log.d(TAG, "Thread stopping");
+
+      } catch (IOException e) { // NOSONAR
+        e.printStackTrace(); // NOSONAR
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
       }
+    }
 
-    });
+    private boolean checkButtonPressDebounced(@NonNull IODeviceInterface deviceInterface, int pin) throws IOException{
+      long timeMillis = SystemClock.uptimeMillis();
+      switch(stateDown[pin]){
+        case 0:
+          if(deviceInterface.readPin(pin) == IODeviceInterface.PinState.LOW){
+            maskDown[pin] = false;
+            prevDownTimeMillis[pin] = timeMillis;
+            stateDown[pin] = 1;
+            Log.d(TAG,"Down state 0 to 1");
+
+          }
+          break;
+        case 1:
+          if(timeMillis - prevDownTimeMillis[pin] >= 15){
+            if(deviceInterface.readPin(pin) == IODeviceInterface.PinState.LOW){
+              Log.d(TAG,"Down state 1 to 2");
+              stateDown[pin] = 2;
+            }else{
+              Log.d(TAG,"Down state 1 to 0");
+              stateDown[pin] = 0;
+            }
+          }
+          break;
+        case 2:
+          if(deviceInterface.readPin(pin) == IODeviceInterface.PinState.HIGH){
+            stateDown[pin] = 3;
+            Log.d(TAG,"Down state 2 to 3");
+            maskDown[pin] = true;
+            prevDownTimeMillis[pin] = timeMillis;
+          }else if(maskDown[pin] != (deviceInterface.readPin(pin) == IODeviceInterface.PinState.HIGH)){
+            stateDown[pin] = 0;
+            Log.d(TAG,"Down state 2 to 0");
+          }
+          break;
+        case 3:
+          if(timeMillis - prevDownTimeMillis[pin] >= 15) {
+            if (deviceInterface.readPin(pin) == IODeviceInterface.PinState.HIGH) {
+              stateDown[pin] = 0;
+              Log.d(TAG,"Down state 3 to 0 XXXX");
+              return true;
+            }else{
+              Log.d(TAG,"Down state 3 to 2");
+              stateDown[pin] = 2;
+            }
+          }
+          break;
+        default:
+          break;
+      }
+      return false;
+    }
+
+    private void triggerEvent(int input, boolean pressed) {
+      int action = pressed ? KeyEvent.ACTION_DOWN : KeyEvent.ACTION_UP;
+      KeyEvent[] events = new KeyEvent[]{new KeyEvent(action, KEY_CODES[input])};
+
+      if (!inputDriver.emit(events)) {
+        Log.w(TAG, "Unable to emit key event");
+      }
+    }
+  }
+
+  @Override
+  public int onStartCommand(Intent intent, int flags, int startId) {
+    keepRunning = true;
+    Thread thread = new Thread(new PinReader());
     thread.start();
-
-
     return START_STICKY;
 
   }
 
-  private void triggerEvent(int input, boolean pressed) {
-    int action = pressed ? KeyEvent.ACTION_DOWN : KeyEvent.ACTION_UP;
-    KeyEvent[] events = new KeyEvent[]{new KeyEvent(action, KEY_CODES[input])};
 
-    if (!inputDriver.emit(events)) {
-      Log.w(TAG, "Unable to emit key event");
-    }
-  }
 
   @Nullable
   @Override
