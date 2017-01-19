@@ -178,6 +178,7 @@ public class LCDDriver {
   }
 
   private void digitalWrite(int pin, int value) throws IOException {
+    //System.out.println("digitalWrite " + pin + " " + value); // NOSONAR
     ioDeviceInterface.writePin(pin, value == 1 ? IODeviceInterface.PinState.HIGH : IODeviceInterface.PinState.LOW);
   }
 
@@ -342,10 +343,10 @@ public class LCDDriver {
  */
 
   public void lcdPosition(int x, int y) throws IOException {
-    if ((x > cols) || (x < 0)) {
+    if ((x >= cols) || (x < 0)) {
       return;
     }
-    if ((y > rows) || (y < 0)) {
+    if ((y >= rows) || (y < 0)) {
       return;
     }
 
