@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/wintersandroid/Android-Things-Device-Experiments.svg?branch=master)](https://travis-ci.org/wintersandroid/Android-Things-Device-Experiments)
+
 Android Things Device Experiments
 =====================================
 
