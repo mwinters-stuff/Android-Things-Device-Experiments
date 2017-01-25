@@ -24,6 +24,7 @@ import android.widget.Spinner;
 import android.widget.TextView;
 
 import com.appyvet.rangebar.RangeBar;
+import com.example.androidthings.pca6895servotest.rf24.RF24;
 import com.google.android.things.pio.PeripheralManagerService;
 
 import org.androidannotations.annotations.AfterViews;
@@ -157,6 +158,8 @@ public class MainActivity extends Activity {
       lcdDriver = new LCDDriver(mcp23017,2,16,4,AF_RS,AF_E,AF_DB4,AF_DB5,AF_DB6,AF_DB7,0,0,0,0);
 
       lcdDriver.lcdPuts("Hello");
+
+      RF24 rf24 = new RF24(peripheralManagerService,1,0,0);
 
     } catch (Exception e) { // NOSONAR
       Log.d("ERROR", "Exception: " + e.getMessage());
