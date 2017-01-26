@@ -18,6 +18,8 @@ package com.example.androidthings.pca6895servotest;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.support.v4.text.TextUtilsCompatJellybeanMr1;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.widget.Spinner;
@@ -26,6 +28,7 @@ import android.widget.TextView;
 import com.appyvet.rangebar.RangeBar;
 import com.example.androidthings.pca6895servotest.rf24.RF24;
 import com.google.android.things.pio.PeripheralManagerService;
+import com.google.common.base.Joiner;
 
 import org.androidannotations.annotations.AfterViews;
 import org.androidannotations.annotations.Click;
@@ -36,8 +39,11 @@ import org.androidannotations.annotations.ViewById;
 import org.androidannotations.annotations.sharedpreferences.Pref;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
+import java.util.StringJoiner;
 
 
 /**
@@ -79,14 +85,13 @@ public class MainActivity extends Activity {
   private static final int SERVO_MAX = 580;
   private int usingChannel = 0;
 
-
   class RangeBarChangeListener implements RangeBar.OnRangeBarChangeListener {
 
     @Override
     public void onRangeChangeListener(RangeBar rangeBar, int leftPinIndex, int rightPinIndex, String leftPinValue, String rightPinValue) {
       try {
-        appPrefs.angleLeft().put(leftPinIndex);
-        appPrefs.angleRight().put(rightPinIndex);
+        setChannelLeftAngle(usingChannel, leftPinIndex);
+        setChannelRightAngle(usingChannel, rightPinIndex);
         updateText();
       } catch (Exception e) { // NOSONAR
         Log.d("ERROR", "Exception: " + e.getMessage());
@@ -120,13 +125,47 @@ public class MainActivity extends Activity {
     LEFT,RIGHT
   }
 
+  private List<Integer> channelLeftAngles = new ArrayList<>(16);
+  private List<Integer> channelRightAngles = new ArrayList<>(16);
+
   private ServoPosition[] servoPositions = {ServoPosition.LEFT,ServoPosition.LEFT,ServoPosition.LEFT,ServoPosition.LEFT,ServoPosition.LEFT};
 
   private DeviceHolder deviceHolder = DeviceHolder.getInstance();
 
+
+
   @AfterViews
   protected void onAfterViews() {
-    rangeBar.setRangePinsByIndices(appPrefs.angleLeft().get(),appPrefs.angleRight().get());
+    channelLeftAngles.clear();
+    if(!appPrefs.channelAnglesLeft().get().isEmpty()){
+      TextUtils.StringSplitter splitter = new TextUtils.SimpleStringSplitter('|');
+
+      // Once per string to split
+      splitter.setString(appPrefs.channelAnglesLeft().get());
+      for (String s : splitter) {
+        channelLeftAngles.add(Integer.parseInt(s));
+      }
+    }else{
+      for(int i = 0; i < 16; i++){
+        channelLeftAngles.add(20);
+      }
+    }
+
+    if(!appPrefs.channelAnglesRight().get().isEmpty()){
+      channelRightAngles.clear();
+      TextUtils.StringSplitter splitter = new TextUtils.SimpleStringSplitter('|');
+
+      // Once per string to split
+      splitter.setString(appPrefs.channelAnglesRight().get());
+      for (String s : splitter) {
+        channelRightAngles.add(Integer.parseInt(s));
+      }
+    }else{
+      for(int i = 0; i < 16; i++){
+        channelRightAngles.add(40);
+      }
+    }
+
     rangeBar.setOnRangeBarChangeListener(new RangeBarChangeListener());
     spinnerChannel.setSelection(appPrefs.selectedChannel().get());
 
@@ -159,7 +198,7 @@ public class MainActivity extends Activity {
 
       lcdDriver.lcdPuts("Hello");
 
-      RF24 rf24 = new RF24(peripheralManagerService,1,0,0);
+      //RF24 rf24 = new RF24(peripheralManagerService,1,0,0);
 
     } catch (Exception e) { // NOSONAR
       Log.d("ERROR", "Exception: " + e.getMessage());
@@ -186,7 +225,7 @@ public class MainActivity extends Activity {
     try {
       IODeviceInterface deviceInterface = DeviceHolder.getInstance().getDevice(DeviceHolder.Devices.PCA9685SERVO);
       if(deviceInterface != null && deviceInterface instanceof PCA9685Servo) {
-        ((PCA9685Servo)deviceInterface).setServoAngle(usingChannel, appPrefs.angleLeft().get());
+        ((PCA9685Servo)deviceInterface).setServoAngle(usingChannel, getChannelLeftAngle(usingChannel));
         servoPositions[usingChannel] = ServoPosition.LEFT;
       }
     } catch (IOException e) { // NOSONAR - logged with android.
@@ -199,7 +238,7 @@ public class MainActivity extends Activity {
     try {
       IODeviceInterface deviceInterface = DeviceHolder.getInstance().getDevice(DeviceHolder.Devices.PCA9685SERVO);
       if(deviceInterface != null && deviceInterface instanceof PCA9685Servo) {
-        ((PCA9685Servo)deviceInterface).setServoAngle(usingChannel, appPrefs.angleRight().get());
+        ((PCA9685Servo)deviceInterface).setServoAngle(usingChannel, getChannelRightAngle(usingChannel));
         servoPositions[usingChannel] = ServoPosition.RIGHT;
       }
     } catch (IOException e) { // NOSONAR - logged with android.
@@ -211,6 +250,7 @@ public class MainActivity extends Activity {
   void onItemSelect(boolean selected, int position){
     if(selected) {
       usingChannel = position;
+      rangeBar.setRangePinsByIndices(getChannelLeftAngle(usingChannel),getChannelRightAngle(usingChannel));
       appPrefs.selectedChannel().put(position);
       updateText();
     }
@@ -286,16 +326,35 @@ public class MainActivity extends Activity {
     IODeviceInterface deviceInterface = DeviceHolder.getInstance().getDevice(DeviceHolder.Devices.PCA9685SERVO);
     if(deviceInterface != null && deviceInterface instanceof PCA9685Servo) {
       if(servoPositions[channel] == ServoPosition.LEFT) {
-        ((PCA9685Servo)deviceInterface).setServoAngle(channel, appPrefs.angleRight().get());
+        ((PCA9685Servo)deviceInterface).setServoAngle(channel, getChannelRightAngle(channel));
         servoPositions[channel] = ServoPosition.RIGHT;
         lcdDriver.lcdClear();
         lcdDriver.lcdPuts("CH " + channel + " RIGHT");
       }else{
-        ((PCA9685Servo)deviceInterface).setServoAngle(channel, appPrefs.angleLeft().get());
+        ((PCA9685Servo)deviceInterface).setServoAngle(channel, getChannelLeftAngle(channel));
         servoPositions[channel] = ServoPosition.LEFT;
         lcdDriver.lcdClear();
         lcdDriver.lcdPuts("CH " + channel + " LEFT");
       }
     }
   }
+
+  private void setChannelLeftAngle(int channel, int angle){
+    channelLeftAngles.set(channel,angle);
+    appPrefs.channelAnglesLeft().put(Joiner.on('|').join(channelLeftAngles));
+  }
+
+  private void setChannelRightAngle(int channel, int angle){
+    channelRightAngles.set(channel,angle);
+    appPrefs.channelAnglesRight().put(Joiner.on('|').join(channelRightAngles));
+  }
+
+  int getChannelLeftAngle(int channel){
+    return channelLeftAngles.get(channel);
+  }
+
+  int getChannelRightAngle(int channel){
+    return channelRightAngles.get(channel);
+  }
+
 }
