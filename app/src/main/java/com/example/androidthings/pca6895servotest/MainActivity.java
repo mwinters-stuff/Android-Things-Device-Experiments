@@ -18,6 +18,7 @@ package com.example.androidthings.pca6895servotest;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.os.SystemClock;
 import android.support.v4.text.TextUtilsCompatJellybeanMr1;
 import android.text.TextUtils;
 import android.util.Log;
@@ -29,8 +30,10 @@ import com.appyvet.rangebar.RangeBar;
 import com.example.androidthings.pca6895servotest.rf24.RF24;
 import com.google.android.things.pio.PeripheralManagerService;
 import com.google.common.base.Joiner;
+import com.google.common.primitives.Longs;
 
 import org.androidannotations.annotations.AfterViews;
+import org.androidannotations.annotations.Background;
 import org.androidannotations.annotations.Click;
 import org.androidannotations.annotations.EActivity;
 import org.androidannotations.annotations.ItemSelect;
@@ -68,6 +71,9 @@ import java.util.StringJoiner;
 @EActivity(R.layout.main_activity)
 public class MainActivity extends Activity {
   private static final String TAG = MainActivity.class.getSimpleName();
+  static {
+    System.loadLibrary("native-lib");
+  }
 
   @Pref
   AppPrefs_ appPrefs;
@@ -84,6 +90,8 @@ public class MainActivity extends Activity {
   private static final int SERVO_MIN = 145;
   private static final int SERVO_MAX = 580;
   private int usingChannel = 0;
+  private GPIODevice gpioDevice;
+  private RF24 rf24;
 
   class RangeBarChangeListener implements RangeBar.OnRangeBarChangeListener {
 
@@ -198,10 +206,98 @@ public class MainActivity extends Activity {
 
       lcdDriver.lcdPuts("Hello");
 
-      //RF24 rf24 = new RF24(peripheralManagerService,1,0,0);
+
+      gpioDevice = new GPIODevice(peripheralManagerService);
+
+      gpioDevice.setPinMode(13, IODeviceInterface.PinMode.MODE_OUTPUT);
+      gpioDevice.writePin(13, IODeviceInterface.PinState.HIGH);
+
+      pingRadioThread(peripheralManagerService);
 
     } catch (Exception e) { // NOSONAR
       Log.d("ERROR", "Exception: " + e.getMessage());
+    }
+  }
+
+  boolean stop = false;
+
+  @Background
+  void pingRadioThread(PeripheralManagerService peripheralManagerService){
+    try {
+      rf24 = new RF24(peripheralManagerService, gpioDevice, 0, 22, 32);
+      rf24.begin();
+      rf24.setRetries((byte)15,(byte)15);
+      Log.d(TAG, rf24.printDetails());
+
+      String[] pipes = {"1Node","2Node"};
+
+      rf24.openWritingPipe(pipes[0].getBytes());
+      rf24.openReadingPipe((byte)1,pipes[1].getBytes());
+
+      pingOut();
+      //pongBack();
+
+    } catch (Exception e) { // NOSONAR
+      Log.d("ERROR", "Exception: " + e.getMessage());
+    }
+
+  }
+
+  private void pongBack() throws IOException, InterruptedException {
+    rf24.startListening();
+    while(!stop){
+      if(rf24.available()){
+        long got_time =0;
+        while(rf24.available()){
+          byte[] got_buffer = rf24.read(4);
+          got_time = byteArrayToClong(got_buffer);
+        }
+        rf24.stopListening();
+        rf24.write(longToCByteArray(got_time),4);
+        Log.d(TAG,String.format("Got payload %d...", got_time));
+
+        Thread.sleep(925);
+      }
+      //stop = true;
+    }
+  }
+
+  private void pingOut() throws IOException, InterruptedException {
+    rf24.startListening();
+    while(!stop){
+      rf24.stopListening();
+      Log.d(TAG,"Sending...");
+      long time =  SystemClock.uptimeMillis();
+      byte[] buffer = longToCByteArray(time);
+//            Longs.toByteArray(time);
+//        for(int x = 0; x < 4; x++){
+//          buffer[x] = buffer[x+4];
+//        }
+      boolean ok = rf24.write(buffer,4);
+
+      if(!ok){
+        Log.e(TAG,"Send Failed");
+      }
+      rf24.startListening();
+      long started_waiting_at = SystemClock.uptimeMillis();
+      boolean timeout = false;
+      while(!rf24.available() && !timeout){
+        if(SystemClock.uptimeMillis() - started_waiting_at > 200){
+          timeout = true;
+        }
+      }
+
+      if(timeout){
+        Log.e(TAG,"Response timed out");
+      }else{
+        byte[] got_buffer = rf24.read(4);
+        long got_time = byteArrayToClong(got_buffer);
+
+        Log.d(TAG,String.format("GOT Response %d, sent %d, trip delay %d",got_time,time,SystemClock.uptimeMillis() - time));
+      }
+
+      Thread.sleep(1000);
+
     }
   }
 
@@ -320,6 +416,11 @@ public class MainActivity extends Activity {
       currentColour = 0;
     }
 
+    if(gpioDevice != null) {
+      gpioDevice.writePin(13, gpioDevice.readPin(13) == IODeviceInterface.PinState.HIGH ? IODeviceInterface.PinState.LOW : IODeviceInterface.PinState.HIGH);
+    }
+
+
   }
 
   private void swapChannel(int channel) throws IOException {
@@ -357,4 +458,6 @@ public class MainActivity extends Activity {
     return channelRightAngles.get(channel);
   }
 
+  public native byte[] longToCByteArray(long value);
+  public native long  byteArrayToClong(byte[] array);
 }
