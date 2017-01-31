@@ -18,7 +18,6 @@ package com.example.androidthings.pca6895servotest;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -26,13 +25,11 @@ import android.widget.Spinner;
 import android.widget.TextView;
 
 import com.appyvet.rangebar.RangeBar;
-import com.example.androidthings.pca6895servotest.rf24.RF24;
 import com.google.android.things.pio.Gpio;
 import com.google.android.things.pio.PeripheralManagerService;
 import com.google.common.base.Joiner;
 
 import org.androidannotations.annotations.AfterViews;
-import org.androidannotations.annotations.Background;
 import org.androidannotations.annotations.Click;
 import org.androidannotations.annotations.EActivity;
 import org.androidannotations.annotations.ItemSelect;
@@ -68,9 +65,6 @@ import java.util.Locale;
 @EActivity(R.layout.main_activity)
 public class MainActivity extends Activity {
   private static final String TAG = MainActivity.class.getSimpleName();
-  static {
-    System.loadLibrary("native-lib");
-  }
 
   @Pref
   AppPrefs_ appPrefs;
@@ -87,8 +81,6 @@ public class MainActivity extends Activity {
   private static final int SERVO_MIN = 145;
   private static final int SERVO_MAX = 580;
   private int usingChannel = 0;
-  //private GPIODevice gpioDevice;
-  private Gpio cePin;
   private Gpio ledPinRed;
 
 
@@ -205,302 +197,15 @@ public class MainActivity extends Activity {
 
       lcdDriver.lcdPuts("Hello");
 
-      cePin = peripheralManagerService.openGpio("BCM22");
       ledPinRed = peripheralManagerService.openGpio("BCM13");
       ledPinRed.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
       ledPinRed.setValue(false);
 
-//      gpioDevice = new GPIODevice(peripheralManagerService);
-//
-//      gpioDevice.setPinMode(13, IODeviceInterface.PinMode.MODE_OUTPUT);
-//      gpioDevice.writePin(13, IODeviceInterface.PinState.LOW);
-
-      pingRadioThread(peripheralManagerService);
-
     } catch (Exception e) { // NOSONAR
       Log.d("ERROR", "Exception: " + e.getMessage());
     }
   }
 
-  boolean stop = false;
-  String[] pipes = {"1Node","2Node"};
-
-  @Background
-  void pingRadioThread(PeripheralManagerService peripheralManagerService){
-    try {
-
-      //pingOut(peripheralManagerService);
-     //pongBack(peripheralManagerService);
-
-     // pongBackCallResponse(peripheralManagerService);
-      //pingOutCallResponse(peripheralManagerService);
-     dynPairPong(peripheralManagerService);
-      //dynPairPing(peripheralManagerService);
-
-    } catch (Exception e) { // NOSONAR
-      Log.d("ERROR", "Exception: " + e.getMessage());
-    }
-
-  }
-
-  private void pingOutCallResponse(PeripheralManagerService peripheralManagerService) throws IOException, InterruptedException {
-    try (RF24 radio = new RF24(peripheralManagerService, cePin)) {
-      radio.begin();
-      radio.enableAckPayload();
-      radio.enableDynamicPayloads();
-
-      radio.openWritingPipe(pipes[0].getBytes());
-      radio.openReadingPipe((byte) 1, pipes[1].getBytes());
-      Log.d(TAG, radio.printDetails());
-
-      byte counter = 1;
-
-      radio.startListening();
-      radio.writeAckPayload((byte) 1, new byte[]{counter}, 1);
-
-      while (!stop) {
-        radio.stopListening();
-        Log.d(TAG, String.format("Now sending %d as payload.", counter));
-        long time = SystemClock.uptimeMillis();
-        if (radio.write(new byte[]{counter}, 1)) {
-          if (!radio.available()) {
-            Log.d(TAG, String.format("Got blank response. round trip delay: %d", SystemClock.uptimeMillis() - time));
-          } else {
-            while (radio.available()) {
-              byte[] buffer = radio.read(1);
-              Log.d(TAG, String.format("Got response %d. round-trip delay %d", buffer[0], SystemClock.uptimeMillis() - time));
-              counter++;
-            }
-          }
-        } else {
-          Log.d(TAG, "Sending Failed.");
-        }
-        Thread.sleep(1000);
-      }
-    }
-
-  }
-
-
-  static final String send_payload_str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ789012";
-
-  static final byte[][] dyn_pipes = {{(byte)0xE1,(byte)0xF0,(byte)0xF0,(byte)0xF0,(byte)0xF0}, {(byte)0xD2,(byte)0xF0,(byte)0xF0,(byte)0xF0,(byte)0xF0}};
-
-  private void dynPairPong(PeripheralManagerService peripheralManagerService) throws IOException, InterruptedException {
-    try (RF24 radio = new RF24(peripheralManagerService, cePin)) {
-      radio.begin();
-      radio.enableDynamicPayloads();
-      radio.setRetries((byte) 5, (byte) 15);
-
-
-      radio.openWritingPipe(dyn_pipes[1]);
-      radio.openReadingPipe((byte) 1, dyn_pipes[0]);
-      Log.d(TAG, radio.printDetails());
-      radio.startListening();
-
-      int nextPayloadSize = 4;
-
-      byte[] send_payload = send_payload_str.getBytes();
-
-      while (!stop) {
-
-        if (radio.available()) {
-          byte len = 0;
-          byte[] receive_payload = {};
-          while (radio.available()) {
-            len = radio.getDynamicPayloadSize();
-            receive_payload = radio.read(len);
-
-            Log.d(TAG, String.format("Got payload size %d value %s", len, new String(receive_payload)));
-          }
-          radio.stopListening();
-          if (len > 0) {
-            radio.write(receive_payload, len);
-            Log.d(TAG, "Sent Response");
-          }
-          radio.startListening();
-        }
-
-
-      }
-    }
-  }
-
-
-  private void dynPairPing(PeripheralManagerService peripheralManagerService) throws IOException, InterruptedException {
-    try (RF24 radio = new RF24(peripheralManagerService, cePin)) {
-
-      radio.begin();
-      radio.enableDynamicPayloads();
-      radio.setRetries((byte) 5, (byte) 15);
-
-
-      radio.openWritingPipe(dyn_pipes[0]);
-      radio.openReadingPipe((byte) 1, dyn_pipes[1]);
-      Log.d(TAG, radio.printDetails());
-
-      int nextPayloadSize = 4;
-
-      byte[] send_payload = send_payload_str.getBytes();
-
-      while (!stop) {
-        radio.stopListening();
-        Log.d(TAG, String.format("Now Sending length %d", nextPayloadSize));
-
-        radio.write(send_payload, nextPayloadSize);
-
-        radio.startListening();
-
-        long started_waiting_at = SystemClock.uptimeMillis();
-        boolean timeout = false;
-        while (!radio.available() && !timeout) {
-          if (SystemClock.uptimeMillis() - started_waiting_at > 500) {
-            timeout = true;
-          }
-        }
-
-          if (timeout) {
-            Log.d(TAG, "Failed, response timeout,");
-          } else {
-            byte len = radio.getDynamicPayloadSize();
-            if (len > 0) {
-              byte[] receive_payload = radio.read(len);
-              // receive_payload[len] = 0;
-              Log.d(TAG, String.format("got response size %d value=%s", len, new String(receive_payload)));
-            } else {
-              Log.d(TAG, "Dynamic payload size = 0");
-            }
-          }
-          nextPayloadSize += 1;
-          if (nextPayloadSize > 32) {
-            nextPayloadSize = 4;
-          }
-          Thread.sleep(100);
-
-
-      }
-    }
-  }
-
-  private void pongBackCallResponse(PeripheralManagerService peripheralManagerService) throws IOException, InterruptedException {
-    try (RF24 radio = new RF24(peripheralManagerService, cePin)) {
-
-      radio.begin();
-      radio.enableAckPayload();
-      radio.enableDynamicPayloads();
-
-      radio.openWritingPipe(pipes[0].getBytes());
-      radio.openReadingPipe((byte) 1, pipes[1].getBytes());
-      Log.d(TAG, radio.printDetails());
-
-      byte counter = 1;
-
-      radio.startListening();
-      radio.writeAckPayload((byte) 1, new byte[]{counter}, 1);
-
-      while (!stop) {
-        byte pipeNo = radio.available(false);
-        if (pipeNo > -1) {
-          byte[] buffer = radio.read(1);
-          buffer[0] += 1;
-          radio.writeAckPayload(pipeNo, buffer, 1);
-          Log.d(TAG, String.format("Loaded next response for pipe %d response %d", pipeNo, buffer[0]));
-          Thread.sleep(900);
-        } else {
-          Log.d(TAG, "No available");
-  //        Thread.sleep(1000);
-        }
-  //      radio.flushRx();
-  //      radio.flushTx();
-
-      }
-    }
-
-  }
-
-  private void pongBack(PeripheralManagerService peripheralManagerService) throws IOException, InterruptedException {
-    try (RF24 radio = new RF24(peripheralManagerService, cePin)) {
-
-      radio.begin();
-
-      radio.setRetries((byte) 15, (byte) 15);
-
-      radio.openWritingPipe(pipes[0].getBytes());
-      radio.openReadingPipe((byte) 1, pipes[1].getBytes());
-      Log.d(TAG, radio.printDetails());
-
-      radio.startListening();
-      while (!stop) {
-        if (radio.available()) {
-          long got_time = 0;
-          while (radio.available()) {
-            byte[] got_buffer = radio.read(4);
-            got_time = byteArrayToClong(got_buffer);
-          }
-          radio.stopListening();
-          radio.write(longToCByteArray(got_time), 4);
-
-          radio.startListening();
-
-          Log.d(TAG, String.format("Got payload %d...", got_time));
-
-          Thread.sleep(925);
-        }
-        //stop = true;
-      }
-    }
-  }
-
-  private void pingOut(PeripheralManagerService peripheralManagerService) throws IOException, InterruptedException {
-    try (RF24 radio = new RF24(peripheralManagerService, cePin)) {
-
-      radio.begin();
-
-      radio.setRetries((byte) 15, (byte) 15);
-
-      radio.openWritingPipe(pipes[0].getBytes());
-      radio.openReadingPipe((byte) 1, pipes[1].getBytes());
-
-      Log.d(TAG, radio.printDetails());
-
-      radio.startListening();
-      while (!stop) {
-        radio.stopListening();
-        Log.d(TAG, "Sending...");
-        long time = SystemClock.uptimeMillis();
-        byte[] buffer = longToCByteArray(time);
-//            Longs.toByteArray(time);
-//        for(int x = 0; x < 4; x++){
-//          buffer[x] = buffer[x+4];
-//        }
-        boolean ok = radio.write(buffer, 4);
-
-        if (!ok) {
-          Log.e(TAG, "Send Failed");
-        }
-        radio.startListening();
-        long started_waiting_at = SystemClock.uptimeMillis();
-        boolean timeout = false;
-        while (!radio.available() && !timeout) {
-          if (SystemClock.uptimeMillis() - started_waiting_at > 200) {
-            timeout = true;
-          }
-        }
-
-        if (timeout) {
-          Log.e(TAG, "Response timed out");
-        } else {
-          byte[] got_buffer = radio.read(4);
-          long got_time = byteArrayToClong(got_buffer);
-
-          Log.d(TAG, String.format("GOT Response %d, sent %d, trip delay %d", got_time, time, SystemClock.uptimeMillis() - time));
-        }
-
-        Thread.sleep(1000);
-
-      }
-    }
-  }
 
   @Override
   public void onResume(){
@@ -657,6 +362,4 @@ public class MainActivity extends Activity {
     return channelRightAngles.get(channel);
   }
 
-  public native byte[] longToCByteArray(long value);
-  public native long  byteArrayToClong(byte[] array);
 }
