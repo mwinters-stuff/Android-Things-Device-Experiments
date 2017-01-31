@@ -4,7 +4,7 @@ import android.os.SystemClock;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
-import com.example.androidthings.pca6895servotest.IODeviceInterface;
+import com.google.android.things.pio.Gpio;
 import com.google.android.things.pio.PeripheralManagerService;
 import com.google.android.things.pio.SpiDevice;
 import com.google.common.primitives.Longs;
@@ -13,7 +13,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-
 
 
 /**
@@ -25,9 +24,9 @@ import java.util.Locale;
     "squid:CommentedOutCodeLine", "squid:S00116", "squid:S00117", "squid:S00100", "squid:S1226"})
 public class RF24 implements Closeable {
   private static final String TAG = RF24.class.getName();
-  private final int cePin;
+  private final Gpio cePin;
   private final SpiDevice device;
-  private final IODeviceInterface ioDevice;
+
   /****************************************************************************/
   byte[] child_pipe =
       {
@@ -53,44 +52,23 @@ public class RF24 implements Closeable {
   private byte[] pipe0ReadingAddress = new byte[5];
   private int txRxDelay;
 
-  enum rf24PaDBM {
-    RF24_PA_MIN, RF24_PA_LOW, RF24_PA_HIGH, RF24_PA_MAX, RF24_PA_ERROR
-  }
-
-
-  enum rf24CRCLen {RF24_CRC_DISABLED, RF24_CRC_8, RF24_CRC_16}
-
-
-  enum rf24DataRate {RF24_1MBPS, RF24_2MBPS, RF24_250KBPS}
-
-  class WhatHappenedResult {
-    boolean tx_ok;
-    boolean tx_fail;
-    boolean rx_ready;
-  }
-
-  class ReturnBuffer {
-    public int status;
-    public byte[] buffer;
-    public int bufferLen;
-
-    public void copyBuffer(byte[] in, int start, int len) {
-      buffer = new byte[len];
-      int y = 0;
-      for (int i = start; i < len+start; i++) {
-        buffer[y++] = in[i];
-      }
-    }
-  }
 
   /**
    * < Last address set on pipe 0 for reading.
    */
 
-  public RF24(@NonNull PeripheralManagerService manager, IODeviceInterface ioDevice, int spiBus, int cePin, int payloadSize) throws IOException {
+  public RF24(@NonNull PeripheralManagerService manager, Gpio cePin, int spiBus) throws IOException {
+    this(manager, cePin, 16, spiBus, 32);
+  }
+
+  public RF24(@NonNull PeripheralManagerService manager, Gpio cePin) throws IOException {
+    this(manager, cePin, 16, 0, 32);
+  }
+
+
+  public RF24(@NonNull PeripheralManagerService manager, Gpio cePin, int spiFrequency, int spiBus, int payloadSize) throws IOException {
     this.cePin = cePin;
 //    this.csPin = csPin;
-    this.ioDevice = ioDevice;
     this.payloadSize = payloadSize;
     this.addrWidth = 5;
     this.pVariant = false;
@@ -107,15 +85,15 @@ public class RF24 implements Closeable {
       throw new IOException("SpiDevice open failed");
     }
 
-    ioDevice.setPinMode(cePin, IODeviceInterface.PinMode.MODE_OUTPUT);
-//    ioDevice.setPinMode(csPin, IODeviceInterface.PinMode.MODE_OUTPUT);
-    Log.d(TAG,"construct");
-    device.setMode(SpiDevice.MODE0);
+    cePin.setDirection(Gpio.DIRECTION_OUT_INITIALLY_HIGH);
 
-    device.setFrequency(8000000);     // 16MHz
+    //Log.d(TAG,"construct");
+    device.setMode(SpiDevice.MODE0);
+    device.setFrequency(spiFrequency * 1000000);     // 16MHz
     device.setBitsPerWord(8);          // 8 BPW
-    //device.setBitJustification(true); // MSB first
+    device.setBitJustification(false); // MSB first
     delayMicroseconds(5);
+
   }
 
   @Override
@@ -142,88 +120,83 @@ public class RF24 implements Closeable {
     }
   }
 
-  void csn(IODeviceInterface.PinState mode) throws IOException {
-    //device.setCsChange(true);
-//    ioDevice.writePin(csPin, mode);
-//    delayMicroseconds(5);
-  }
-
-  void ce(IODeviceInterface.PinState level) throws IOException {
-    ioDevice.writePin(cePin, level);
+  void ce(boolean level) throws IOException {
+    cePin.setValue(level);
   }
 
   void beginTransaction() throws IOException {
-    csn(IODeviceInterface.PinState.LOW);
-  }
-
-  void endTransaction() throws IOException {
-    csn(IODeviceInterface.PinState.HIGH);
+    //csn(false);
+    device.setMode(SpiDevice.MODE0);
+    device.setFrequency(8000000);     // 16MHz
+    device.setBitsPerWord(8);          // 8 BPW
   }
 
   ReturnBuffer readRegister(byte reg, int len) throws IOException {
-    csn(IODeviceInterface.PinState.LOW);
+    beginTransaction();
 
-    int pos = 0;
-    spi_txbuff[pos++] = (byte) (nRF24L01.R_REGISTER.i() | (nRF24L01.REGISTER_MASK.i() & reg));
-    while (pos <= len) {
-      spi_txbuff[pos++] = nRF24L01.NOP.i();
+    int ptx = 0;
+    spi_txbuff[ptx++] = (byte) (nRF24L01.R_REGISTER.i() | (nRF24L01.REGISTER_MASK.i() & reg));
+    int size = len + 1;
+    while (len-- != 0) {
+      spi_txbuff[ptx++] = nRF24L01.NOP.i();
     }
 
-    device.transfer(spi_txbuff, spi_rxbuff, len + 1);
+    transfer(spi_txbuff, spi_rxbuff, size);
 
     ReturnBuffer rv = new ReturnBuffer();
     rv.status = spi_rxbuff[0];
-    rv.copyBuffer(spi_rxbuff, 1, len);
-    //Log.d(TAG,String.format("readRegisterB(%02x,%02x,%02x,%02x)",reg,spi_rxbuff[1],spi_txbuff[0],spi_rxbuff[0]));
+    rv.copyBuffer(spi_rxbuff, 1, size);
+    ////Log.d(TAG,String.format("readRegisterB(%02x,%02x,%02x,%02x)",reg,spi_rxbuff[1],spi_txbuff[0],spi_rxbuff[0]));
     return rv;
   }
 
   byte readRegister(byte reg) throws IOException {
-    csn(IODeviceInterface.PinState.LOW);
+    beginTransaction();
 
     int pos = 0;
     spi_txbuff[pos++] = (byte) (nRF24L01.R_REGISTER.i() | (nRF24L01.REGISTER_MASK.i() & reg));
     spi_txbuff[pos] = nRF24L01.NOP.i();
 
-    device.transfer(spi_txbuff, spi_rxbuff, 2);
-    //Log.d(TAG,String.format("readRegister(%02x,%02x,%02x,%02x)",reg,spi_rxbuff[1],spi_txbuff[0],spi_rxbuff[0]));
+    transfer(spi_txbuff, spi_rxbuff, 2);
+    ////Log.d(TAG,String.format("readRegister(%02x,%02x,%02x,%02x)",reg,spi_rxbuff[1],spi_txbuff[0],spi_rxbuff[0]));
     return spi_rxbuff[1];
   }
 
   byte writeRegister(byte reg, byte[] buf, int len) throws IOException {
-    csn(IODeviceInterface.PinState.LOW);
+    beginTransaction();
 
-    int pos = 0;
-    spi_txbuff[pos++] = (byte) (nRF24L01.W_REGISTER.i() | (nRF24L01.REGISTER_MASK.i() & reg));
-    while (pos <= len) {
-      spi_txbuff[pos] = buf[pos - 1];
-      pos++;
+    int ptx = 0;
+    int size = len + 1;
+    int bx = 0;
+    spi_txbuff[ptx++] = (byte) (nRF24L01.W_REGISTER.i() | (nRF24L01.REGISTER_MASK.i() & reg));
+    while (len-- != 0) {
+      spi_txbuff[ptx++] = buf[bx++];
     }
-    spi_txbuff[pos] = nRF24L01.NOP.i();
+    spi_txbuff[ptx] = nRF24L01.NOP.i();
 
-    device.transfer(spi_txbuff, spi_rxbuff, len + 1);
+    transfer(spi_txbuff, spi_rxbuff, size);
     return spi_rxbuff[0];
   }
 
   byte writeRegister(byte reg, byte value) throws IOException {
-    csn(IODeviceInterface.PinState.LOW);
+    beginTransaction();
 
-    int pos = 0;
-    spi_txbuff[pos++] = (byte) (nRF24L01.W_REGISTER.i() | (nRF24L01.REGISTER_MASK.i() & reg));
-    spi_txbuff[pos] = (byte)value;
+    int ptx = 0;
+    spi_txbuff[ptx++] = (byte) (nRF24L01.W_REGISTER.i() | (nRF24L01.REGISTER_MASK.i() & reg));
+    spi_txbuff[ptx] = value;
 
-    device.transfer(spi_txbuff, spi_rxbuff, 2);
-   // Log.d(TAG,String.format("writeRegister(%02x,%02x,%02x,%02x)",reg,value,spi_txbuff[0],spi_rxbuff[0]));
+    transfer(spi_txbuff, spi_rxbuff, 2);
+    // //Log.d(TAG,String.format("writeRegister(%02x,%02x,%02x,%02x)",reg,value,spi_txbuff[0],spi_rxbuff[0]));
     return spi_rxbuff[0];
   }
 
   byte writePayload(byte[] buffer, int dataLen, byte writeType) throws IOException {
-    Log.d(TAG,"writePayload");
+    //Log.d(TAG,"writePayload");
     int current = 0;
     dataLen = Math.min(dataLen, payloadSize);
     int blankLen = dynamicPayloadsEnabled ? 0 : payloadSize - dataLen;
 
-    csn(IODeviceInterface.PinState.LOW);
+    beginTransaction();
 
     int ptx = 0;
     int size = dataLen + blankLen + 1;
@@ -236,21 +209,25 @@ public class RF24 implements Closeable {
       spi_txbuff[ptx++] = 0;
     }
 
-    device.transfer(spi_txbuff, spi_rxbuff, size);
+    transfer(spi_txbuff, spi_rxbuff, size);
     return spi_rxbuff[0];
   }
 
+//  void endTransaction() throws IOException {
+////    csn(true);
+//  }
+
   ReturnBuffer readPayload(int dataLen) throws IOException {
-    Log.d(TAG,"readPayload");
+    //Log.d(TAG,"readPayload");
     ReturnBuffer status = new ReturnBuffer();
 
-    int current = 0;
+    //int current = 0;
     if (dataLen > payloadSize) {
       dataLen = payloadSize;
     }
     int blankLen = dynamicPayloadsEnabled ? 0 : payloadSize - dataLen;
 
-    csn(IODeviceInterface.PinState.LOW);
+    beginTransaction();
 
     int prx = 0;
     int ptx = 0;
@@ -263,26 +240,33 @@ public class RF24 implements Closeable {
 
     size = dataLen + blankLen + 1;
 
-    device.transfer(spi_txbuff, spi_rxbuff, size);
+    transfer(spi_txbuff, spi_rxbuff, size);
     status.status = spi_rxbuff[prx++];
     status.copyBuffer(spi_rxbuff, prx, dataLen);
 
     return status;
   }
 
-  byte spiTrans(byte command) throws IOException {
-    csn(IODeviceInterface.PinState.LOW);
-    spi_txbuff[0] = command;
-    device.transfer(spi_txbuff, spi_rxbuff, 1);
-    return spi_rxbuff[0];
-  }
-
-  byte flushRx() throws IOException {
+  public byte flushRx() throws IOException {
     return spiTrans(nRF24L01.FLUSH_RX.i());
   }
 
-  byte flushTx() throws IOException {
+  public byte flushTx() throws IOException {
     return spiTrans(nRF24L01.FLUSH_TX.i());
+  }
+
+  void transfer(byte[] txbuf, byte[] rxbuf, int len) throws IOException {
+//    device.write(txbuf,len);
+//    device.read(txbuf,len);
+    device.transfer(txbuf, rxbuf, len);
+  }
+
+  byte spiTrans(byte command) throws IOException {
+    beginTransaction();
+
+    spi_txbuff[0] = command;
+    transfer(spi_txbuff, spi_rxbuff, 1);
+    return spi_rxbuff[0];
   }
 
   byte getStatus() throws IOException {
@@ -325,9 +309,11 @@ public class RF24 implements Closeable {
 
       ReturnBuffer buffer = readRegister(reg++, addrWidth);
 
+      stringBuilder.append(" 0x");
+
       int bufptr = addrWidth;
       while (--bufptr >= 0) {
-        stringBuilder.append(String.format(Locale.getDefault(), " 0x%02x", buffer.buffer[bufptr]));
+        stringBuilder.append(String.format(Locale.getDefault(), "%02X", buffer.buffer[bufptr]));
       }
     }
     stringBuilder.append("\n");
@@ -354,7 +340,7 @@ public class RF24 implements Closeable {
     @SuppressWarnings("StringBufferReplaceableByString")
     StringBuilder stringBuilder = new StringBuilder();
 
-    stringBuilder.append(getStatus());
+    stringBuilder.append(printStatus(getStatus()));
     stringBuilder.append("\n");
     stringBuilder.append(printAddressRegister("RX_ADDR_P0-1", nRF24L01.RX_ADDR_P0.i(), 2));
     stringBuilder.append(printByteRegister("RX_ADDR_P2-5", nRF24L01.RX_ADDR_P2.i(), 4));
@@ -372,7 +358,7 @@ public class RF24 implements Closeable {
     stringBuilder.append(rf24DataRateStr[getDataRate().ordinal()]);
     stringBuilder.append("\nModel\t\t = ");
     stringBuilder.append(rf24ModelStr[isPVariant() ? 1 : 0]);
-    stringBuilder.append("\nCRC Length\t = ");
+    stringBuilder.append("\nCRC Length = ");
     stringBuilder.append(rf24CrcLengthStr[getCRCLength().ordinal()]);
     stringBuilder.append("\nPA Power\t = ");
     stringBuilder.append(rf24PaDbmStr[getPALevel()]);
@@ -380,21 +366,17 @@ public class RF24 implements Closeable {
     return stringBuilder.toString();
   }
 
-
   byte _BV(byte bit) {
     return (byte) (1 << bit);
   }
 
   public void begin() throws IOException {
-    int setup;
-    Log.d(TAG,"begin");
-       // spi.begin
+    //int setup;
+    //Log.d(TAG,"begin");
+    // spi.begin
 
-    ioDevice.setPinMode(cePin, IODeviceInterface.PinMode.MODE_OUTPUT);
-    ce(IODeviceInterface.PinState.LOW);
-
+    ce(false);
     delay(100);
-
     delay(5);
 
     // Reset CONFIG and enable 16-bit CRC.
@@ -402,7 +384,7 @@ public class RF24 implements Closeable {
     // Set 1500uS (minimum for 32B payload in ESB@250KBPS) timeouts, to make testing a little easier
     // WARNING: If this is ever lowered, either 250KBS mode with AA is broken or maximum packet
     // sizes must never be used. See documentation for a more complete explanation.
-    setRetries((byte)5, (byte)15);
+    setRetries((byte) 5, (byte) 15);
 
     // check for connected module and if this is a p nRF24l01 variant
     //
@@ -445,11 +427,11 @@ public class RF24 implements Closeable {
 
   public void startListening() throws IOException {
     powerUp();
-    Log.d(TAG,"startListening");
+    //Log.d(TAG,"startListening");
     writeRegister(nRF24L01.CONFIG.i(), (byte) (readRegister(nRF24L01.CONFIG.i()) | _BV(nRF24L01.PRIM_RX.i())));
 
     writeRegister(nRF24L01.NRF_STATUS.i(), (byte) (_BV(nRF24L01.RX_DR.i()) | _BV(nRF24L01.TX_DS.i()) | _BV(nRF24L01.MAX_RT.i())));
-    ce(IODeviceInterface.PinState.HIGH);
+    ce(true);
     // Restore the pipe0 adddress, if exists
     if (pipe0ReadingAddress[0] > 0) {
       writeRegister(nRF24L01.RX_ADDR_P0.i(), pipe0ReadingAddress, addrWidth);
@@ -465,8 +447,8 @@ public class RF24 implements Closeable {
   }
 
   public void stopListening() throws IOException {
-    Log.d(TAG,"stopListening()");
-    ce(IODeviceInterface.PinState.LOW);
+    //Log.d(TAG,"stopListening()");
+    ce(false);
 
     delayMicroseconds(txRxDelay);
 
@@ -482,20 +464,20 @@ public class RF24 implements Closeable {
   }
 
   void powerDown() throws IOException {
-    Log.d(TAG,"powerDown");
-    ce(IODeviceInterface.PinState.LOW); // Guarantee CE is low on powerDown
+    //Log.d(TAG,"powerDown");
+    ce(false); // Guarantee CE is low on powerDown
     writeRegister(nRF24L01.CONFIG.i(), (byte) ((readRegister(nRF24L01.CONFIG.i())) & ~_BV(nRF24L01.PWR_UP.i())));
   }
 
   //Power up now. Radio will not power down unless instructed by MCU for config changes etc.
   void powerUp() throws IOException {
-    Log.d(TAG,"PowerUp");
+    //Log.d(TAG,"PowerUp");
     byte cfg = readRegister(nRF24L01.CONFIG.i());
 
     // if not powered up then power up and wait for the radio to initialize
     if ((cfg & _BV(nRF24L01.PWR_UP.i())) == 0) {
       byte w = (byte) (cfg | _BV(nRF24L01.PWR_UP.i()));
-      Log.d(TAG,String.format("%02x %02x",cfg,w));
+      //Log.d(TAG,String.format("%02x %02x",cfg,w));
       writeRegister(nRF24L01.CONFIG.i(), w);
 
       // For nRF24L01+ to go from power down mode to TX or RX mode it must first pass through stand-by mode.
@@ -523,7 +505,7 @@ public class RF24 implements Closeable {
       }
     }
 
-    ce(IODeviceInterface.PinState.LOW);
+    ce(false);
 
     byte status = writeRegister(nRF24L01.NRF_STATUS.i(), (byte) (_BV(nRF24L01.RX_DR.i()) | _BV(nRF24L01.TX_DS.i()) | _BV(nRF24L01.MAX_RT.i())));
 
@@ -573,8 +555,8 @@ public class RF24 implements Closeable {
   private void reUseTX() throws IOException {
     writeRegister(nRF24L01.NRF_STATUS.i(), _BV(nRF24L01.MAX_RT.i()));        //Clear max retry flag
     spiTrans(nRF24L01.REUSE_TX_PL.i());
-    ce(IODeviceInterface.PinState.LOW);                      //Re-Transfer packet
-    ce(IODeviceInterface.PinState.HIGH);
+    ce(false);                      //Re-Transfer packet
+    ce(true);
   }
 
   boolean writeFast(byte[] buf, int len, boolean multicast) throws IOException {
@@ -610,7 +592,7 @@ public class RF24 implements Closeable {
   private void startFastWrite(byte[] buf, int len, boolean multicast, boolean startTx) throws IOException {
     writePayload(buf, len, multicast ? nRF24L01.W_TX_PAYLOAD_NO_ACK.i() : nRF24L01.W_TX_PAYLOAD.i());
     if (startTx) {
-      ce(IODeviceInterface.PinState.HIGH);
+      ce(true);
     }
   }
 
@@ -622,8 +604,8 @@ public class RF24 implements Closeable {
 
     //write_payload( buf, len );
     writePayload(buf, len, multicast ? nRF24L01.W_TX_PAYLOAD_NO_ACK.i() : nRF24L01.W_TX_PAYLOAD.i());
-    ce(IODeviceInterface.PinState.HIGH);
-    ce(IODeviceInterface.PinState.LOW);
+    ce(true);
+    ce(false);
   }
 
   boolean rxFifoFull() throws IOException {
@@ -635,7 +617,7 @@ public class RF24 implements Closeable {
     while (0 == (readRegister(nRF24L01.FIFO_STATUS.i()) & _BV(nRF24L01.TX_EMPTY.i()))) {
       if ((getStatus() & _BV(nRF24L01.MAX_RT.i())) > 0) {
         writeRegister(nRF24L01.NRF_STATUS.i(), _BV(nRF24L01.MAX_RT.i()));
-        ce(IODeviceInterface.PinState.LOW);
+        ce(false);
         flushTx();    //Non blocking, flush the data
         return false;
       }
@@ -645,7 +627,7 @@ public class RF24 implements Closeable {
       }
     }
 
-    ce(IODeviceInterface.PinState.LOW);         //Set STANDBY-I mode
+    ce(false);         //Set STANDBY-I mode
     return true;
   }
 
@@ -653,17 +635,17 @@ public class RF24 implements Closeable {
 
     if (startTx) {
       stopListening();
-      ce(IODeviceInterface.PinState.HIGH);
+      ce(true);
     }
     long start = millis();
 
     while (0 == (readRegister(nRF24L01.FIFO_STATUS.i()) & _BV(nRF24L01.TX_EMPTY.i()))) {
       if ((getStatus() & _BV(nRF24L01.MAX_RT.i())) > 0) {
         writeRegister(nRF24L01.NRF_STATUS.i(), _BV(nRF24L01.MAX_RT.i()));
-        ce(IODeviceInterface.PinState.LOW);                      //Set re-transmit
-        ce(IODeviceInterface.PinState.HIGH);
+        ce(false);                      //Set re-transmit
+        ce(true);
         if (millis() - start >= timeout) {
-          ce(IODeviceInterface.PinState.LOW);
+          ce(false);
           flushTx();
           return false;
         }
@@ -674,21 +656,21 @@ public class RF24 implements Closeable {
     }
 
 
-    ce(IODeviceInterface.PinState.LOW);           //Set STANDBY-I mode
+    ce(false);           //Set STANDBY-I mode
     return false;
   }
 
   void maskIRQ(boolean tx, boolean fail, boolean rx) throws IOException {
-    writeRegister(nRF24L01.CONFIG.i(), (byte) ((readRegister(nRF24L01.CONFIG.i())) | ((fail ? 1 : 0) << nRF24L01.MASK_MAX_RT.i()) | ((tx ? 1 : 0) << nRF24L01.MASK_TX_DS.i()) | ((rx ? 1 : 0) << nRF24L01.MASK_RX_DR.i())));
+    writeRegister(nRF24L01.CONFIG.i(), (byte) ((readRegister(nRF24L01.CONFIG.i()) & 0xff) | ((fail ? 1 : 0) << nRF24L01.MASK_MAX_RT.i()) | ((tx ? 1 : 0) << nRF24L01.MASK_TX_DS.i()) | ((rx ? 1 : 0) << nRF24L01.MASK_RX_DR.i())));
   }
 
-  byte getDynamicPayloadSize() throws IOException {
+  public byte getDynamicPayloadSize() throws IOException {
     spi_txbuff[0] = nRF24L01.R_RX_PL_WID.i();
     spi_rxbuff[1] = (byte) 0xff;
-    csn(IODeviceInterface.PinState.LOW);
-    device.transfer(spi_txbuff, spi_rxbuff, 2);
+    beginTransaction();
+    transfer(spi_txbuff, spi_rxbuff, 2);
     byte result = spi_rxbuff[1];
-    csn(IODeviceInterface.PinState.HIGH);
+
 
     if (result > 32) {
       flushRx();
@@ -704,23 +686,39 @@ public class RF24 implements Closeable {
 
   /****************************************************************************/
 
-  byte available(boolean pipe_num) throws IOException {
-    int v = (readRegister(nRF24L01.FIFO_STATUS.i()) & _BV(nRF24L01.RX_EMPTY.i()));
-   // Log.d(TAG,String.format("available %02x", v));
-    if (0 == v) {
+  public byte available(boolean pipe_num) throws IOException {
+    byte r = readRegister(nRF24L01.FIFO_STATUS.i());
+
+    if ((r & _BV(nRF24L01.RX_EMPTY.i())) == 0) {// || (r & _BV(nRF24L01.RX_FULL.i())) == 0){
+//      Log.d(TAG,"FIFO available");
 
       // If the caller wants the pipe number, include that
       if (pipe_num) {
         byte status = getStatus();
-        return (byte) ((status >> nRF24L01.RX_P_NO.i()) & 0b111);
+        return (byte) ((status >> nRF24L01.RX_P_NO.i()) & 0x07);
       }
       return 1;
     }
+//    if((r & _BV(nRF24L01.TX_FULL.i())) == 0){
+//      Log.d(TAG,"FIFO TX_FULL");
+//    }
+//    if((r & _BV(nRF24L01.TX_EMPTY.i())) == 0){
+//      Log.d(TAG,"FIFO TX_EMPTY");
+//    }
+//
+//    if((r & _BV(nRF24L01.RX_FULL.i())) == 0){
+//      Log.d(TAG,"FIFO RX_FULL");
+//    }
+//
+//    if((r & _BV(nRF24L01.RX_EMPTY.i())) == 0){
+//      Log.d(TAG,"FIFO RX_EMPTY");
+//    }
+
     return -1;
   }
 
   public byte[] read(int len) throws IOException {
-    Log.d(TAG,"read");
+    //Log.d(TAG,"read");
     // Fetch the payload
     ReturnBuffer rv = readPayload(len);
 
@@ -742,7 +740,7 @@ public class RF24 implements Closeable {
   }
 
   public void openWritingPipe(long value) throws IOException {
-    Log.d(TAG,"openWiritingPipe");
+    //Log.d(TAG,"openWiritingPipe");
     // Note that AVR 8-bit uC's store this LSB first, and the NRF24L01(+)
     // expects it LSB first too, so we're good.
     byte[] buffer = Longs.toByteArray(value);
@@ -757,8 +755,8 @@ public class RF24 implements Closeable {
 
   /****************************************************************************/
 
-    public void openWritingPipe(byte[] address) throws IOException {
-      Log.d(TAG,"openWritingPipe");
+  public void openWritingPipe(byte[] address) throws IOException {
+    //Log.d(TAG,"openWritingPipe");
     // Note that AVR 8-bit uC's store this LSB first, and the NRF24L01(+)
     // expects it LSB first too, so we're good.
 
@@ -771,7 +769,7 @@ public class RF24 implements Closeable {
   }
 
   public void openReadingPipe(byte child, long address) throws IOException {
-    Log.d(TAG,"openReadingPipe");
+    //Log.d(TAG,"openReadingPipe");
     // If this is pipe 0, cache the address.  This is needed because
     // openWritingPipe() will overwrite the pipe 0 address, so
     // startListening() will have to restore it.
@@ -797,7 +795,7 @@ public class RF24 implements Closeable {
   }
 
   void setAddressWidth(byte a_width) throws IOException {
-    Log.d(TAG,"setAddressWidth");
+    //Log.d(TAG,"setAddressWidth");
     a_width -= 2;
     if (a_width > 0) {
       writeRegister(nRF24L01.SETUP_AW.i(), (byte) (a_width % 4));
@@ -807,7 +805,7 @@ public class RF24 implements Closeable {
   }
 
   public void openReadingPipe(byte child, byte[] address) throws IOException {
-    Log.d(TAG,"openReadingPipe");
+    //Log.d(TAG,"openReadingPipe");
     // If this is pipe 0, cache the address.  This is needed because
     // openWritingPipe() will overwrite the pipe 0 address, so
     // startListening() will have to restore it.
@@ -834,21 +832,21 @@ public class RF24 implements Closeable {
   /****************************************************************************/
 
   void closeReadingPipe(byte pipe) throws IOException {
-    Log.d(TAG,"closeReadingPipe");
+    //Log.d(TAG,"closeReadingPipe");
     writeRegister(nRF24L01.EN_RXADDR.i(), (byte) (readRegister(nRF24L01.EN_RXADDR.i()) & ~_BV(childPipeEnable[pipe])));
   }
 
   private void toggleFeatures() throws IOException {
-    csn(IODeviceInterface.PinState.LOW);
+    beginTransaction();
     byte[] buffer = new byte[1];
     buffer[0] = nRF24L01.ACTIVATE.i();
     device.write(buffer, 1);
     buffer[0] = 0x73;
     device.write(buffer, 1);
-    csn(IODeviceInterface.PinState.HIGH);
+
   }
 
-  void enableDynamicPayloads() throws IOException {
+  public void enableDynamicPayloads() throws IOException {
     // Enable dynamic payload throughout the system
 
     //toggle_features();
@@ -865,7 +863,7 @@ public class RF24 implements Closeable {
     dynamicPayloadsEnabled = true;
   }
 
-  void enableAckPayload() throws IOException {
+  public void enableAckPayload() throws IOException {
     //
     // enable ack payload and dynamic payload features
     //
@@ -891,12 +889,12 @@ public class RF24 implements Closeable {
     writeRegister(nRF24L01.FEATURE.i(), (byte) (readRegister(nRF24L01.FEATURE.i()) | _BV(nRF24L01.EN_DYN_ACK.i())));
   }
 
-  void writeAckPayload(byte pipe, byte[] buf, int len) throws IOException {
+  public void writeAckPayload(byte pipe, byte[] buf, int len) throws IOException {
     int current = 0;
 
     int data_len = min((byte) len, (byte) 32);
 
-    csn(IODeviceInterface.PinState.LOW);
+    beginTransaction();
     int ptx = 0;
     int size = data_len + 1; // Add register value to transmit buffer
     spi_txbuff[ptx++] = (byte) (nRF24L01.W_ACK_PAYLOAD.i() | (pipe & 0b111));
@@ -904,8 +902,7 @@ public class RF24 implements Closeable {
       spi_txbuff[ptx++] = buf[current++];
     }
 
-    device.transfer(spi_txbuff, null, size);
-    csn(IODeviceInterface.PinState.HIGH);
+    transfer(spi_txbuff, null, size);
 
   }
 
@@ -929,127 +926,89 @@ public class RF24 implements Closeable {
     }
   }
 
-
-  boolean testCarrier() throws IOException
-  {
-    return ( readRegister(nRF24L01.CD.i()) & 1 ) > 0;
+  boolean testCarrier() throws IOException {
+    return (readRegister(nRF24L01.CD.i()) & 1) > 0;
   }
 
-  boolean testRPD() throws IOException
-  {
-    return ( readRegister(nRF24L01.RPD.i()) & 1 ) > 0;
-  }
-
-  void setPALevel(byte level) throws IOException
-  {
-    Log.d(TAG,"setPALevel");
-    byte setup = (byte) (readRegister(nRF24L01.RF_SETUP.i()) & 0b11111000);
-
-    if(level > 3){  						// If invalid level, go to max PA
-      level = (byte) ((rf24PaDBM.RF24_PA_MAX.ordinal() << 1) + 1);		// +1 to support the SI24R1 chip extra bit
-    }else{
-      level = (byte) ((level << 1) + 1);	 		// Else set level as requested
-    }
-
-
-    writeRegister( nRF24L01.RF_SETUP.i(), setup |= level ) ;	// Write it to the chip
+  boolean testRPD() throws IOException {
+    return (readRegister(nRF24L01.RPD.i()) & 1) > 0;
   }
 
   /****************************************************************************/
 
-  byte getPALevel() throws IOException
-  {
+  byte getPALevel() throws IOException {
 
     return (byte) ((readRegister(nRF24L01.RF_SETUP.i()) & (_BV(nRF24L01.RF_PWR_LOW.i()) | _BV(nRF24L01.RF_PWR_HIGH.i()))) >> 1);
   }
 
+  void setPALevel(byte level) throws IOException {
+    //Log.d(TAG,"setPALevel");
+    byte setup = (byte) (readRegister(nRF24L01.RF_SETUP.i()) & 0b11111000);
+
+    if (level > 3) {              // If invalid level, go to max PA
+      level = (byte) ((rf24PaDBM.RF24_PA_MAX.ordinal() << 1) + 1);    // +1 to support the SI24R1 chip extra bit
+    } else {
+      level = (byte) ((level << 1) + 1);      // Else set level as requested
+    }
+
+
+    writeRegister(nRF24L01.RF_SETUP.i(), (byte) (setup | level));  // Write it to the chip
+  }
+
   private boolean setDataRate(rf24DataRate speed) throws IOException {
     boolean result = false;
-    byte setup = readRegister(nRF24L01.RF_SETUP.i()) ;
+    byte setup = readRegister(nRF24L01.RF_SETUP.i());
 
     // HIGH and LOW '00' is 1Mbs - our default
-    setup &= ~(_BV(nRF24L01.RF_DR_LOW.i()) | _BV(nRF24L01.RF_DR_HIGH.i())) ;
+    setup &= ~(_BV(nRF24L01.RF_DR_LOW.i()) | _BV(nRF24L01.RF_DR_HIGH.i()));
 
-    txRxDelay=250;
+    txRxDelay = 250;
 
-    if( speed == rf24DataRate.RF24_250KBPS )
-    {
+    if (speed == rf24DataRate.RF24_250KBPS) {
       // Must set the RF_DR_LOW to 1; RF_DR_HIGH (used to be RF_DR) is already 0
       // Making it '10'.
-      setup |= _BV( nRF24L01.RF_DR_LOW.i() ) ;
-      txRxDelay=450;
-    }
-    else
-    {
+      setup |= _BV(nRF24L01.RF_DR_LOW.i());
+      txRxDelay = 450;
+    } else {
       // Set 2Mbs, RF_DR (RF_DR_HIGH) is set 1
       // Making it '01'
-      if ( speed == rf24DataRate.RF24_2MBPS )
-      {
+      if (speed == rf24DataRate.RF24_2MBPS) {
         setup |= _BV(nRF24L01.RF_DR_HIGH.i());
-        txRxDelay=190;
+        txRxDelay = 190;
       }
     }
-    writeRegister(nRF24L01.RF_SETUP.i(),setup);
+    writeRegister(nRF24L01.RF_SETUP.i(), setup);
 
     // Verify our result
-    if ( readRegister(nRF24L01.RF_SETUP.i()) == setup )
-    {
+    if (readRegister(nRF24L01.RF_SETUP.i()) == setup) {
       result = true;
     }
     return result;
   }
 
-
-  private rf24DataRate getDataRate() throws IOException{
-    byte dr = (byte) (readRegister(nRF24L01.RF_SETUP.i()) & (_BV(nRF24L01.RF_DR_LOW.i()  ) | _BV(nRF24L01.RF_DR_HIGH.i())));
+  private rf24DataRate getDataRate() throws IOException {
+    byte dr = (byte) (readRegister(nRF24L01.RF_SETUP.i()) & (_BV(nRF24L01.RF_DR_LOW.i()) | _BV(nRF24L01.RF_DR_HIGH.i())));
 
     // switch uses RAM (evil!)
     // Order matters in our case below
-    if ( dr == _BV(nRF24L01.RF_DR_LOW.i()  ) )
-    {
+    if (dr == _BV(nRF24L01.RF_DR_LOW.i())) {
       // '10' = 250KBPS
-      return rf24DataRate.RF24_250KBPS ;
-    }
-    else if ( dr == _BV(nRF24L01.RF_DR_HIGH.i()) )
-    {
+      return rf24DataRate.RF24_250KBPS;
+    } else if (dr == _BV(nRF24L01.RF_DR_HIGH.i())) {
       // '01' = 2MBPS
-      return rf24DataRate.RF24_2MBPS ;
-    }
-    else
-    {
+      return rf24DataRate.RF24_2MBPS;
+    } else {
       // '00' = 1MBPS
-      return rf24DataRate.RF24_1MBPS ;
+      return rf24DataRate.RF24_1MBPS;
     }
   }
 
-  void setCRCLength(rf24CRCLen length) throws IOException
-  {
-    byte config = (byte) (readRegister(nRF24L01.CONFIG.i()) & ~( _BV(nRF24L01.CRCO.i()) | _BV(nRF24L01.EN_CRC.i())));
-
-    // switch uses RAM (evil!)
-    if ( length == rf24CRCLen.RF24_CRC_DISABLED )
-    {
-      // Do nothing, we turned it off above.
-    }
-    else if ( length == rf24CRCLen.RF24_CRC_8 )
-    {
-      config |= _BV(nRF24L01.EN_CRC.i());
-    }
-    else
-    {
-      config |= _BV(nRF24L01.EN_CRC.i()  );
-      config |= _BV( nRF24L01.CRCO.i() );
-    }
-    writeRegister( nRF24L01.CONFIG.i(), config ) ;
-  }
-
-  private rf24CRCLen getCRCLength() throws IOException{
-    byte config = (byte) (readRegister(nRF24L01.CONFIG.i()) & ( _BV(nRF24L01.CRCO.i()) | _BV(nRF24L01.EN_CRC.i())));
+  private rf24CRCLen getCRCLength() throws IOException {
+    byte config = (byte) (readRegister(nRF24L01.CONFIG.i()) & (_BV(nRF24L01.CRCO.i()) | _BV(nRF24L01.EN_CRC.i())));
     byte AA = readRegister(nRF24L01.EN_AA.i());
 
-    if ( ((config & _BV(nRF24L01.EN_CRC.i()) ) > 0)  || (AA > 0))
-    {
-      if ( (config & _BV(nRF24L01.CRCO.i()) ) > 0)
+    if (((config & _BV(nRF24L01.EN_CRC.i())) > 0) || (AA > 0)) {
+      if ((config & _BV(nRF24L01.CRCO.i())) > 0)
         return rf24CRCLen.RF24_CRC_16;
       else
         return rf24CRCLen.RF24_CRC_8;
@@ -1059,26 +1018,66 @@ public class RF24 implements Closeable {
 
   }
 
-  void disableCRC( ) throws IOException
-  {
-    byte disable = (byte) (readRegister(nRF24L01.CONFIG.i()) & ~_BV(nRF24L01.EN_CRC.i()));
-    writeRegister( nRF24L01.CONFIG.i(), disable ) ;
+  void setCRCLength(rf24CRCLen length) throws IOException {
+    byte config = (byte) (readRegister(nRF24L01.CONFIG.i()) & ~(_BV(nRF24L01.CRCO.i()) | _BV(nRF24L01.EN_CRC.i())));
+
+    // switch uses RAM (evil!)
+    if (length == rf24CRCLen.RF24_CRC_DISABLED) {
+      // Do nothing, we turned it off above.
+    } else if (length == rf24CRCLen.RF24_CRC_8) {
+      config |= _BV(nRF24L01.EN_CRC.i());
+    } else {
+      config |= _BV(nRF24L01.EN_CRC.i());
+      config |= _BV(nRF24L01.CRCO.i());
+    }
+    writeRegister(nRF24L01.CONFIG.i(), config);
   }
 
+  void disableCRC() throws IOException {
+    byte disable = (byte) (readRegister(nRF24L01.CONFIG.i()) & ~_BV(nRF24L01.EN_CRC.i()));
+    writeRegister(nRF24L01.CONFIG.i(), disable);
+  }
 
-  public void setRetries(byte delay , byte count) throws IOException {
-    Log.d(TAG,"setRetries");
-    writeRegister(nRF24L01.SETUP_RETR.i(), (byte) ((delay&0xf)<<nRF24L01.ARD.i() | (count&0xf)<<nRF24L01.ARC.i()));
+  public void setRetries(byte delay, byte count) throws IOException {
+    //Log.d(TAG,"setRetries");
+    writeRegister(nRF24L01.SETUP_RETR.i(), (byte) ((delay & 0xf) << nRF24L01.ARD.i() | (count & 0xf) << nRF24L01.ARC.i()));
   }
 
   private boolean isPVariant() {
     return pVariant;
   }
 
+  enum rf24PaDBM {
+    RF24_PA_MIN, RF24_PA_LOW, RF24_PA_HIGH, RF24_PA_MAX, RF24_PA_ERROR
+  }
+
+  enum rf24CRCLen {RF24_CRC_DISABLED, RF24_CRC_8, RF24_CRC_16}
+
+  enum rf24DataRate {RF24_1MBPS, RF24_2MBPS, RF24_250KBPS}
+
+  class WhatHappenedResult {
+    boolean tx_ok;
+    boolean tx_fail;
+    boolean rx_ready;
+  }
+
+  class ReturnBuffer {
+    public int status;
+    public byte[] buffer;
+    public int bufferLen;
+
+    public void copyBuffer(byte[] in, int start, int len) {
+      buffer = new byte[len];
+      int y = 0;
+      for (int i = start; i < len + start; i++) {
+        buffer[y++] = in[i];
+      }
+    }
+  }
+
   /**
    * < Var for adjusting delays depending on datarate
    */
-
 
 
 }
